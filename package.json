@@ -1,0 +1,62 @@
+{
+  "name": "mongodb-extras",
+  "version": "0.1.0",
+  "description": "Typed, reusable MongoDB queries with projections and populated relations.",
+  "author": "cboar",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cboar/mongodb-extras.git"
+  },
+  "homepage": "https://github.com/cboar/mongodb-extras#readme",
+  "bugs": {
+    "url": "https://github.com/cboar/mongodb-extras/issues"
+  },
+  "keywords": [
+    "mongodb",
+    "populate",
+    "relations",
+    "views",
+    "typescript",
+    "find",
+    "findOne"
+  ],
+  "scripts": {
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "test": "node --test --test-concurrency=1 'test/**/*.test.ts'",
+    "typecheck": "tsc --noEmit",
+    "check": "npm test && npm run typecheck",
+    "start:db": "mkdir -p .mongodb && mongod --dbpath .mongodb --fork --logpath .mongodb/mongod.log --port 27017",
+    "stop:db": "mongod --dbpath .mongodb --shutdown",
+    "reset:db": "npm run stop:db 2>/dev/null; rm -rf .mongodb && npm run start:db"
+  },
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^24.13.2",
+    "mongodb": "^7.6.0",
+    "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "mongodb": "^6.0.0 || ^7.0.0"
+  }
+}
