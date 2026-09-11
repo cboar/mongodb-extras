@@ -33,14 +33,16 @@ export type SourceFilter<C extends CollectionSource> =
       ? Filter<InferSchema<C>>
       : Record<string, unknown>
 
-export type ViewFindOptions = Omit<FindOptions, 'projection' | 'explain' | 'raw' | 'returnKey'> & {
-  projection?: never
-  explain?: never
-  raw?: never
-  returnKey?: never
+type WithoutOptions<T, K extends keyof T> = Omit<T, K> & {
+  [P in K]?: never
 }
 
-export type ViewFindOneOptions = Omit<
+export type ViewFindOptions = WithoutOptions<
+  FindOptions,
+  'projection' | 'explain' | 'raw' | 'returnKey'
+>
+
+export type ViewFindOneOptions = WithoutOptions<
   FindOptions,
   | 'batchSize'
   | 'limit'
@@ -50,16 +52,7 @@ export type ViewFindOneOptions = Omit<
   | 'raw'
   | 'returnKey'
   | 'timeoutMode'
-> & {
-  batchSize?: never
-  limit?: never
-  noCursorTimeout?: never
-  projection?: never
-  explain?: never
-  raw?: never
-  returnKey?: never
-  timeoutMode?: never
-}
+>
 
 type IsAny<T> = 0 extends 1 & T ? true : false
 
@@ -77,6 +70,10 @@ export type HasCompatibleFindOne<C extends CollectionSource> =
       ? true
       : false
 
+type ViewReadResult<R, C extends CollectionSource, TDoc> = unknown extends TDoc
+  ? Awaited<R>
+  : MapLoaderResult<Awaited<R>, InferSchema<C>, TDoc>
+
 export interface View<TDoc = unknown, C extends CollectionSource = CollectionSource> {
   readonly collection: C
   read<R = TDoc>(
@@ -84,7 +81,7 @@ export interface View<TDoc = unknown, C extends CollectionSource = CollectionSou
       collection: ResolvedCollection<C>,
       options: { projection: DocumentSelection | undefined },
     ) => R | Promise<R>,
-  ): Promise<unknown extends TDoc ? Awaited<R> : MapLoaderResult<Awaited<R>, InferSchema<C>, TDoc>>
+  ): Promise<ViewReadResult<R, C, TDoc>>
   find(filter?: SourceFilter<C>, options?: ViewFindOptions): Promise<TDoc[]>
   findOne(filter?: SourceFilter<C>, options?: ViewFindOneOptions): Promise<TDoc | null>
 }
@@ -95,25 +92,24 @@ export interface ViewConfig<C extends CollectionSource = CollectionSource> {
   populate?: PopulateMap
 }
 
-export interface RelationConfig<
-  C extends CollectionSource = CollectionSource,
-> extends ViewConfig<C> {
+export type PopulateUnresolvedPolicy = 'null' | 'filter' | 'throw'
+
+interface RelationOptions {
   foreignKey?: string
+  onUnresolved?: PopulateUnresolvedPolicy
 }
+
+export interface RelationConfig<C extends CollectionSource = CollectionSource>
+  extends ViewConfig<C>, RelationOptions {}
 
 type AnyView = View<unknown, any>
 
 export type PopulateRelationEntry =
-  | AnyView
-  | RelationConfig
-  | {
-      view: AnyView | ViewConfig
-      foreignKey?: string
-    }
+  AnyView | RelationConfig | ({ view: AnyView | ViewConfig } & RelationOptions)
 
 export type PopulateMap = Record<string, PopulateRelationEntry>
 
-type ValidateViewConfig<V, ExtraKeys extends string = never> = V extends AnyView
+type ValidateViewConfig<V, Options extends object = {}> = V extends AnyView
   ? V
   : V extends { collection: unknown }
     ? {
@@ -128,21 +124,18 @@ type ValidateViewConfig<V, ExtraKeys extends string = never> = V extends AnyView
             ? ValidatePopulateMap<SubP>
             : PopulateMap
           : PopulateMap
-      } & {
-        [K in ExtraKeys]?: string
-      } & {
-        [K in Exclude<keyof V, 'collection' | 'select' | 'populate' | ExtraKeys>]: never
-      }
-    : AnyView | (ExtraKeys extends never ? ViewConfig : RelationConfig)
+      } & Options & {
+          [K in Exclude<keyof V, 'collection' | 'select' | 'populate' | keyof Options>]: never
+        }
+    : AnyView | (ViewConfig & Options)
 
 type ValidateRelationEntry<E> = E extends { view: unknown }
   ? {
       view: ValidateViewConfig<E['view']>
-      foreignKey?: string
-    } & {
-      [K in Exclude<keyof E, 'view' | 'foreignKey'>]: never
-    }
-  : ValidateViewConfig<E, 'foreignKey'>
+    } & RelationOptions & {
+        [K in Exclude<keyof E, 'view' | keyof RelationOptions>]: never
+      }
+  : ValidateViewConfig<E, RelationOptions>
 
 export type ValidatePopulateMap<P> = P extends undefined
   ? undefined

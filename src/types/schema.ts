@@ -3,6 +3,7 @@ import type {
   CollectionSource,
   DocumentSelection,
   PopulateMap,
+  PopulateUnresolvedPolicy,
   ResolvedCollection,
   View,
 } from './core.ts'
@@ -116,20 +117,36 @@ export type TargetDocFromEntry<E> = E extends { view: infer V }
   ? TargetDocFromConfig<V>
   : TargetDocFromConfig<E>
 
+type UnresolvedPolicyOf<E> = E extends unknown
+  ? 'onUnresolved' extends keyof E
+    ? | Extract<E['onUnresolved'], PopulateUnresolvedPolicy>
+      | (undefined extends E['onUnresolved'] ? 'null' : never)
+    : 'null'
+  : never
+
+type ArrayNull<Item, P extends PopulateUnresolvedPolicy> = 'null' extends P
+  ? null
+  : 'throw' extends P
+    ? null extends Item
+      ? null
+      : undefined extends Item
+        ? null
+        : never
+    : never
+
 /**
- * Transforms a field type after population.
- * Scalar references become `TargetDoc | null`, arrays become `(TargetDoc | null)[]`,
- * preserving undefined and null from the source schema.
+ * Transforms a relation leaf according to its unresolved policy, preserving source
+ * scalar nullability and normalizing nullish array entries unless filtered.
  */
-export type PopulateField<TSourceField, TTargetDoc> = TSourceField extends undefined
+export type PopulateField<S, D, P extends PopulateUnresolvedPolicy = 'null'> = S extends undefined
   ? undefined
-  : TSourceField extends null
+  : S extends null
     ? null
-    : TSourceField extends unknown[]
-      ? (TTargetDoc | null)[]
-      : TSourceField extends readonly unknown[]
-        ? readonly (TTargetDoc | null)[]
-        : TTargetDoc | null
+    : S extends (infer Item)[]
+      ? (D | ArrayNull<Item, P>)[]
+      : S extends readonly (infer Item)[]
+        ? readonly (D | ArrayNull<Item, P>)[]
+        : D | (P extends 'throw' ? never : null)
 
 export type SubPopulate<P, K extends string> = {
   [SubKey in keyof P as SubKey extends `${K}.${infer Rest}` ? Rest : never]: P[SubKey]
@@ -150,7 +167,7 @@ export type ApplyPopulate<T, P> = P extends undefined
       : {
           [K in keyof T]: K extends string
             ? K extends keyof P
-              ? PopulateField<T[K], TargetDocFromEntry<P[K]>>
+              ? PopulateField<T[K], TargetDocFromEntry<P[K]>, UnresolvedPolicyOf<P[K]>>
               : HasSubPaths<P, K> extends true
                 ? ApplyPopulateNested<T[K], SubPopulate<P, K>>
                 : T[K]

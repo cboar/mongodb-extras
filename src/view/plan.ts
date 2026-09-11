@@ -2,6 +2,7 @@ import type {
   CollectionSource,
   DocumentSelection,
   PopulateMap,
+  PopulateUnresolvedPolicy,
   PopulateRelationEntry,
   View,
   ViewConfig,
@@ -16,16 +17,15 @@ export interface ViewPlan {
   readonly relations: readonly CompiledRelation[]
 }
 
-export interface CompiledRelation {
-  readonly path: string
-  readonly segments: readonly string[]
+interface NormalizedRelation {
   readonly targetView: ViewPlan
   readonly foreignKey: string
+  readonly onUnresolved: PopulateUnresolvedPolicy
 }
 
-export interface NormalizedRelation {
-  readonly targetView: ViewPlan
-  readonly foreignKey: string
+export interface CompiledRelation extends NormalizedRelation {
+  readonly path: string
+  readonly segments: readonly string[]
 }
 
 export const viewPlanCache = new WeakMap<object, ViewPlan>()
@@ -100,7 +100,14 @@ export function normalizeRelation(rel: PopulateRelationEntry): NormalizedRelatio
     throw new TypeError('Relation "foreignKey" must be a non-empty string')
   }
 
+  const policy = 'onUnresolved' in rel ? rel.onUnresolved : undefined
+  const onUnresolved = policy === undefined ? 'null' : policy
+  if (onUnresolved !== 'null' && onUnresolved !== 'filter' && onUnresolved !== 'throw') {
+    throw new TypeError('Relation "onUnresolved" must be "null", "filter", or "throw"')
+  }
+
   return {
+    onUnresolved,
     targetView: getOrCompileViewPlan('view' in rel ? rel.view : rel),
     foreignKey,
   }
@@ -131,7 +138,7 @@ export function compilePopulate(populateMap: PopulateMap): CompiledRelation[] {
 
   for (const [path, rel] of Object.entries(populateMap)) {
     const segments = path.split('.')
-    const { targetView, foreignKey } = normalizeRelation(rel)
+    const { targetView, foreignKey, onUnresolved } = normalizeRelation(rel)
 
     if (!isFieldRetainedInPlan(targetView, foreignKey)) {
       throw new TypeError(
@@ -139,7 +146,7 @@ export function compilePopulate(populateMap: PopulateMap): CompiledRelation[] {
       )
     }
 
-    entries.push({ path, segments, targetView, foreignKey })
+    entries.push({ path, segments, targetView, foreignKey, onUnresolved })
   }
 
   return entries

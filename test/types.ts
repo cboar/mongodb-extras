@@ -349,3 +349,45 @@ defineView({
   collection: Courses,
   populate: satisfiesPopulate,
 })
+
+// Relation policies are accepted only on relation edges.
+const unresolvedTarget = defineView({ collection: Users })
+defineView({
+  collection: Users,
+  populate: { friend: { view: unresolvedTarget, onUnresolved: 'throw' } },
+})
+defineView({
+  collection: Users,
+  populate: { friend: { view: { collection: Users }, onUnresolved: 'filter' } },
+})
+defineView({
+  collection: Users,
+  populate: { friend: { collection: Users, onUnresolved: undefined } },
+})
+// @ts-expect-error Invalid policy literal.
+defineView({ collection: Users, populate: { friend: { collection: Users, onUnresolved: 'omit' } } })
+defineView({
+  collection: Users,
+  // @ts-expect-error Null does not select the default.
+  populate: { friend: { view: unresolvedTarget, onUnresolved: null } },
+})
+// @ts-expect-error Misspelled inline relation option.
+defineView({ collection: Users, populate: { friend: { collection: Users, onUnresolve: 'throw' } } })
+defineView({
+  collection: Users,
+  // @ts-expect-error Misspelled wrapped relation option.
+  populate: { friend: { view: unresolvedTarget, onUnresolve: 'throw' } },
+})
+// @ts-expect-error Policies belong to relations, not the root config.
+defineView({ collection: Users, onUnresolved: 'throw' })
+defineView({
+  collection: Users,
+  // @ts-expect-error Policies belong to the wrapper, not its target config.
+  populate: { friend: { view: { collection: Users, onUnresolved: 'throw' } } },
+})
+const invalidOptionalPolicy: { onUnresolved?: 'omit' } = {}
+defineView({
+  collection: Users,
+  // @ts-expect-error Optional policies also validate their values.
+  populate: { friend: { view: unresolvedTarget, ...invalidOptionalPolicy } },
+})
