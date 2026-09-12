@@ -196,6 +196,24 @@ console.log(availableBooks[0]?.publisherCode?.name)
 console.log(book?.publisherCode?.name)
 ```
 
+## Control unresolved references
+
+Set `onUnresolved` to configure how missing relation targets are handled:
+
+```ts
+const articleView = defineView({
+  collection: articles,
+  populate: {
+    authorId: { view: userPreview, onUnresolved: 'throw' },
+    reviewerIds: { view: userPreview, onUnresolved: 'filter' },
+  },
+})
+```
+
+- `'null'` (default) replaces unresolved references with `null`.
+- `'filter'` removes unresolved matches and any existing nullish values from reference arrays.
+- `'throw'` throws a `PopulateUnresolvedError` if a reference cannot be resolved.
+
 ## Reuse views
 
 A view can be shared across queries and composed into other views.
