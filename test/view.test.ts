@@ -56,7 +56,7 @@ test('rejects cursor return from loader', async () => {
   )
 })
 
-test('array of nullish references does not resolve provider', async () => {
+test('nullish references returned by MongoDB do not resolve provider', async () => {
   let resolved = false
   const unusedView = defineView({
     collection: () => {
@@ -71,8 +71,14 @@ test('array of nullish references does not resolve provider', async () => {
     collection: roots,
     populate: { items: unusedView },
   })
-  const result: any = await root.read((col) => col.findOne({ _id: 100 }))
-  assert.deepEqual(result.items, [null, null])
+  let loaded: unknown
+  const result: any = await root.read(async (col) => {
+    const document = await col.findOne({ _id: 100 })
+    // MongoDB serialization can turn undefined array entries into null.
+    loaded = structuredClone(document?.items)
+    return document
+  })
+  assert.deepEqual(result.items, loaded)
   assert.equal(resolved, false)
 })
 

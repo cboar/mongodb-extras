@@ -89,7 +89,6 @@ export async function executeQueryGroup(
     const { targetView } = target.relation
 
     writeTarget(target, (key) => {
-      if (key == null) return null
       const rawDoc = resultMap.get(key)
       if (rawDoc == null) return null
 

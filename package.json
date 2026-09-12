@@ -1,6 +1,6 @@
 {
   "name": "mongodb-extras",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Typed, reusable MongoDB queries with projections and populated relations.",
   "author": "cboar",
   "license": "MIT",
@@ -54,7 +54,7 @@
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.13.2",
     "mongodb": "^7.6.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "mongodb": "^6.0.0 || ^7.0.0"

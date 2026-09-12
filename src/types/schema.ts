@@ -3,6 +3,7 @@ import type {
   CollectionSource,
   DocumentSelection,
   PopulateMap,
+  PopulateUnresolvedPolicy,
   ResolvedCollection,
   View,
 } from './core.ts'
@@ -79,9 +80,9 @@ export type ApplyProjection<T, S, IsRoot extends boolean = true> = S extends und
       ? T
       : IsInclusive<S> extends true
         ? {
-            [
-              K in keyof T as K extends DirectKeys<S, IsRoot> | SubKeys<S> ? K : never
-            ]: K extends DirectKeys<S, IsRoot>
+            [K in keyof T as K extends DirectKeys<S, IsRoot> | SubKeys<S>
+              ? K
+              : never]: K extends DirectKeys<S, IsRoot>
               ? T[K]
               : K extends string
                 ? ApplyProjectionNested<T[K], SubSelect<S, K>>
@@ -116,20 +117,34 @@ export type TargetDocFromEntry<E> = E extends { view: infer V }
   ? TargetDocFromConfig<V>
   : TargetDocFromConfig<E>
 
+type UnresolvedPolicyOf<E> = E extends unknown
+  ? 'onUnresolved' extends keyof E
+    ?
+        | Extract<E['onUnresolved'], PopulateUnresolvedPolicy>
+        | (undefined extends E['onUnresolved'] ? 'null' : never)
+    : 'null'
+  : never
+
+type ArrayNullish<Item, P extends PopulateUnresolvedPolicy> = P extends 'filter'
+  ? never
+  :
+      | (P extends 'null' ? null : never)
+      | (null extends Item ? null : never)
+      | (undefined extends Item ? undefined : never)
+
 /**
- * Transforms a field type after population.
- * Scalar references become `TargetDoc | null`, arrays become `(TargetDoc | null)[]`,
- * preserving undefined and null from the source schema.
+ * Transforms a relation leaf according to its unresolved policy, preserving source
+ * scalar nullability and explicit null/undefined array entries unless filtered.
  */
-export type PopulateField<TSourceField, TTargetDoc> = TSourceField extends undefined
+export type PopulateField<S, D, P extends PopulateUnresolvedPolicy = 'null'> = S extends undefined
   ? undefined
-  : TSourceField extends null
+  : S extends null
     ? null
-    : TSourceField extends unknown[]
-      ? (TTargetDoc | null)[]
-      : TSourceField extends readonly unknown[]
-        ? readonly (TTargetDoc | null)[]
-        : TTargetDoc | null
+    : S extends (infer Item)[]
+      ? (D | ArrayNullish<Item, P>)[]
+      : S extends readonly (infer Item)[]
+        ? readonly (D | ArrayNullish<Item, P>)[]
+        : D | (P extends 'throw' ? never : null)
 
 export type SubPopulate<P, K extends string> = {
   [SubKey in keyof P as SubKey extends `${K}.${infer Rest}` ? Rest : never]: P[SubKey]
@@ -150,7 +165,7 @@ export type ApplyPopulate<T, P> = P extends undefined
       : {
           [K in keyof T]: K extends string
             ? K extends keyof P
-              ? PopulateField<T[K], TargetDocFromEntry<P[K]>>
+              ? PopulateField<T[K], TargetDocFromEntry<P[K]>, UnresolvedPolicyOf<P[K]>>
               : HasSubPaths<P, K> extends true
                 ? ApplyPopulateNested<T[K], SubPopulate<P, K>>
                 : T[K]
@@ -168,7 +183,8 @@ export type ApplyPopulateNested<TValue, SubP> = TValue extends undefined
         : ApplyPopulate<TValue, SubP>
 
 type IsPathExcluded<Path extends string, S> = Path extends
-  ExcludedKeys<S> | `${ExcludedKeys<S> & string}.${string}`
+  | ExcludedKeys<S>
+  | `${ExcludedKeys<S> & string}.${string}`
   ? true
   : false
 
@@ -179,13 +195,11 @@ export type PopulateKeysSelection<P, S> = P extends undefined
     : string extends keyof P
       ? {}
       : {
-          [
-            K in keyof P as K extends string
-              ? IsPathExcluded<K, S> extends true
-                ? never
-                : K
-              : never
-          ]: 1
+          [K in keyof P as K extends string
+            ? IsPathExcluded<K, S> extends true
+              ? never
+              : K
+            : never]: 1
         }
 
 /**

@@ -268,3 +268,42 @@ test('isolates mutations across sibling fields and embedded array destinations',
   course.sections[0].author.sectionMutated = true
   assert.equal(course.sections[1].author.sectionMutated, undefined)
 })
+
+test('unresolved policies share MongoDB queries and respect excluded references', async () => {
+  const { courses, users } = await seedDatabase()
+  const target = defineView({ collection: users, select: { name: 1 } })
+  const view = defineView({
+    collection: courses,
+    populate: {
+      author: { view: target, onUnresolved: 'throw' },
+      coAuthors: { view: target, onUnresolved: 'filter' },
+      contributors: target,
+    },
+  })
+  const result: any = await view.read(() => ({
+    author: testIds.user1Id,
+    coAuthors: [testIds.user1Id, 'missing', null, testIds.user1Id],
+    contributors: ['missing', testIds.user1Id],
+  }))
+  assert.equal(users.queryCount, 1)
+  assert.equal(result.coAuthors.length, 2)
+  assert.equal(result.contributors[0], null)
+  assert.equal(result.author.name, 'Alice')
+  result.coAuthors[0].name = 'Changed'
+  assert.equal(result.coAuthors[1].name, 'Alice')
+  assert.equal(result.author.name, 'Alice')
+  assert.equal(result.contributors[1].name, 'Alice')
+
+  const excluded = defineView({
+    collection: courses,
+    select: { author: 0 },
+    populate: {
+      author: { view: target, onUnresolved: 'throw' },
+    },
+  })
+  await courses.insertOne({ _id: 99999, title: 'Excluded reference', author: -99999 })
+  const doc = await excluded.findOne({ _id: 99999 })
+  assert.ok(doc)
+  assert.equal('author' in doc, false)
+  assert.equal(users.queryCount, 1)
+})

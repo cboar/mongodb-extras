@@ -1,3 +1,4 @@
+import { PopulateUnresolvedError } from './errors.ts'
 import { getPathTargets } from '../utils/path.ts'
 import { toKeyString } from '../utils/common.ts'
 import type { CompiledRelation } from '../view/plan.ts'
@@ -27,7 +28,7 @@ export function collectReferenceTargets(work: readonly LevelWorkItem[]): Referen
         if (isArray) {
           if (value.length === 0) continue
           if (value.every((val) => val == null)) {
-            parent[key] = value.map(() => null)
+            if (relation.onUnresolved === 'filter') parent[key] = []
             continue
           }
         } else if (value == null) {
@@ -50,11 +51,46 @@ export function collectReferenceTargets(work: readonly LevelWorkItem[]): Referen
   return targets
 }
 
-export function writeTarget(
-  target: ReferenceTarget,
-  resolveKey: (key: string | null) => unknown,
-): void {
+function unresolved(
+  relation: CompiledRelation,
+  reason: PopulateUnresolvedError['reason'],
+  index?: number,
+): null {
+  if (relation.onUnresolved === 'throw') {
+    throw new PopulateUnresolvedError({
+      path: relation.path,
+      foreignKey: relation.foreignKey,
+      reason,
+      index,
+    })
+  }
+  return null
+}
+
+function writeArray(
+  values: readonly unknown[],
+  relation: CompiledRelation,
+  resolve: (value: unknown, index: number) => unknown,
+): unknown[] {
+  if (relation.onUnresolved !== 'filter') return values.map(resolve)
+
+  const populated: unknown[] = []
+  values.forEach((value, index) => {
+    const document = resolve(value, index)
+    if (document != null) populated.push(document)
+  })
+  return populated
+}
+
+export function writeTarget(target: ReferenceTarget, resolveKey: (key: string) => unknown): void {
+  const resolve = (value: unknown, index: number): unknown => {
+    if (value == null) return value
+    const key = target.lookupKeys[index]
+    const errorIndex = target.isArray ? index : undefined
+    if (key == null) return unresolved(target.relation, 'unkeyable', errorIndex)
+    return resolveKey(key) ?? unresolved(target.relation, 'not-found', errorIndex)
+  }
   target.parent[target.key] = target.isArray
-    ? target.lookupKeys.map(resolveKey)
-    : resolveKey(target.lookupKeys[0] ?? null)
+    ? writeArray(target.rawValues, target.relation, resolve)
+    : resolve(target.rawValues[0], 0)
 }

@@ -21,7 +21,7 @@ export function defineView<
 >(config: {
   collection: C & (HasCompatibleFindOne<C> extends true ? unknown : never)
   select?: S
-  populate?: P & (P extends undefined ? undefined : ValidatePopulateMap<P>)
+  populate?: P & ValidatePopulateMap<P>
 }): View<ViewDocument<C, S, P>, C> {
   const plan = getOrCompileViewPlan(config)
 

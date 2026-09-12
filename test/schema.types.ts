@@ -888,3 +888,444 @@ type TestEffExcludedNonMatching = Expect<
     { _id: 0; title: 1 } & { authorId: 1 }
   >
 >
+
+// Unresolved policies preserve source nullability and ancestor containers.
+import type { PopulateUnresolvedPolicy, PopulateMap } from '../src/index.ts'
+import type { PopulateField } from '../src/types/schema.ts'
+type PolicyDoc = { _id: string }
+type PolicyFieldChecks = [
+  Expect<Equal<PopulateField<string, PolicyDoc>, PolicyDoc | null>>,
+  Expect<Equal<PopulateField<string, PolicyDoc, 'filter'>, PolicyDoc | null>>,
+  Expect<Equal<PopulateField<string, PolicyDoc, 'throw'>, PolicyDoc>>,
+  Expect<
+    Equal<
+      PopulateField<string | null | undefined, PolicyDoc, 'throw'>,
+      PolicyDoc | null | undefined
+    >
+  >,
+  Expect<Equal<PopulateField<null, PolicyDoc, 'throw'>, null>>,
+  Expect<Equal<PopulateField<string[], PolicyDoc>, (PolicyDoc | null)[]>>,
+  Expect<Equal<PopulateField<string[] | null, PolicyDoc, 'filter'>, PolicyDoc[] | null>>,
+  Expect<Equal<PopulateField<string[] | null, PolicyDoc, 'throw'>, PolicyDoc[] | null>>,
+  Expect<Equal<PopulateField<(string | null | undefined)[], PolicyDoc, 'filter'>, PolicyDoc[]>>,
+  Expect<
+    Equal<
+      PopulateField<(string | null | undefined)[], PolicyDoc, 'throw'>,
+      (PolicyDoc | null | undefined)[]
+    >
+  >,
+  Expect<Equal<PopulateField<readonly string[], PolicyDoc, 'throw'>, readonly PolicyDoc[]>>,
+  Expect<
+    Equal<
+      PopulateField<readonly (string | undefined)[], PolicyDoc, 'throw'>,
+      readonly (PolicyDoc | undefined)[]
+    >
+  >,
+  Expect<Equal<PopulateField<string[], PolicyDoc, PopulateUnresolvedPolicy>, (PolicyDoc | null)[]>>,
+  Expect<Equal<PopulateField<string[], PolicyDoc, 'filter' | 'throw'>, PolicyDoc[]>>,
+  Expect<
+    Equal<PopulateField<(string | null)[], PolicyDoc, 'filter' | 'throw'>, (PolicyDoc | null)[]>
+  >,
+  Expect<Equal<PopulateField<string[], unknown, 'throw'>, unknown[]>>,
+  Expect<Equal<PopulateField<string[], any, 'filter'>, any[]>>,
+  Expect<Equal<PopulateField<unknown[], PolicyDoc, 'throw'>, (PolicyDoc | null | undefined)[]>>,
+  Expect<Equal<PopulateField<any[], PolicyDoc, 'throw'>, (PolicyDoc | null | undefined)[]>>,
+]
+type PolicySource = {
+  ref: string
+  ids?: readonly string[]
+  sections: ({ ids: string[] } | null)[] | null
+}
+type PolicyTarget = View<PolicyDoc>
+type OptionalPolicyChecks = [
+  Expect<
+    Equal<
+      ApplyPopulate<{ ids: string[] }, { ids: { view: PolicyTarget; onUnresolved?: 'throw' } }>,
+      { ids: (PolicyDoc | null)[] }
+    >
+  >,
+  Expect<
+    Equal<
+      ApplyPopulate<{ ref: string }, { ref: { view: PolicyTarget; onUnresolved?: 'throw' } }>,
+      { ref: PolicyDoc | null }
+    >
+  >,
+  Expect<
+    Equal<
+      ApplyPopulate<{ ids: string[] }, { ids: { view: PolicyTarget; onUnresolved: undefined } }>,
+      { ids: (PolicyDoc | null)[] }
+    >
+  >,
+  Expect<
+    Equal<
+      ApplyPopulate<
+        { ids: string[] },
+        { ids: PolicyTarget | { view: PolicyTarget; onUnresolved: 'throw' } }
+      >,
+      { ids: (PolicyDoc | null)[] }
+    >
+  >,
+  Expect<
+    Equal<
+      ApplyPopulate<
+        PolicySource,
+        {
+          ids: { view: PolicyTarget; onUnresolved: 'filter' }
+          'sections.ids': { view: PolicyTarget; onUnresolved: 'throw' }
+        }
+      >,
+      { ref: string; ids?: readonly PolicyDoc[]; sections: ({ ids: PolicyDoc[] } | null)[] | null }
+    >
+  >,
+]
+const policySources: Collection<PolicySource> = mockCollection
+const policyTargets: Collection<PolicyDoc> = mockCollection
+const policyTarget = defineView({ collection: policyTargets })
+const policyEntries = {
+  ref: { view: policyTarget, onUnresolved: 'throw' },
+  ids: { view: { collection: policyTargets }, onUnresolved: 'filter' },
+  'sections.ids': { collection: policyTargets, onUnresolved: 'throw' },
+} satisfies PopulateMap
+const policyView = defineView({ collection: policySources, populate: policyEntries })
+type PolicyInferred = typeof policyView extends View<infer D, any> ? D : never
+type PolicyInferenceCheck = Expect<
+  Equal<
+    PolicyInferred,
+    {
+      _id: ObjectId
+      ref: PolicyDoc
+      ids?: readonly PolicyDoc[]
+      sections: ({ ids: PolicyDoc[] } | null)[] | null
+    }
+  >
+>
+type PolicyRootNull = Expect<
+  Equal<Awaited<ReturnType<typeof policyView.findOne>>, PolicyInferred | null>
+>
+const optionalPolicy: { onUnresolved?: 'throw' } = {}
+const optionalPolicyView = defineView({
+  collection: policySources,
+  populate: {
+    ref: { view: policyTarget, ...optionalPolicy },
+    ids: { collection: policyTargets, ...optionalPolicy },
+  },
+})
+type OptionalPolicyInferred = typeof optionalPolicyView extends View<infer D, any> ? D : never
+type OptionalPolicyInferenceCheck = Expect<Equal<OptionalPolicyInferred['ref'], PolicyDoc | null>>
+type OptionalArrayPolicyInferenceCheck = Expect<
+  Equal<OptionalPolicyInferred['ids'], readonly (PolicyDoc | null)[] | undefined>
+>
+const broadPolicy = 'filter' as PopulateUnresolvedPolicy
+const unionPolicy = 'filter' as 'filter' | 'throw'
+const broadPolicyView = defineView({
+  collection: policySources,
+  populate: {
+    ids: { collection: policyTargets, onUnresolved: broadPolicy },
+    ref: { view: policyTarget, onUnresolved: unionPolicy },
+  },
+})
+type BroadPolicyDoc = typeof broadPolicyView extends View<infer D, any> ? D : never
+type BroadPolicyChecks = [
+  Expect<Equal<BroadPolicyDoc['ids'], readonly (PolicyDoc | null)[] | undefined>>,
+  Expect<Equal<BroadPolicyDoc['ref'], PolicyDoc | null>>,
+]
+const nestedPolicyView = defineView({
+  collection: policySources,
+  populate: {
+    ref: {
+      collection: policySources,
+      onUnresolved: 'throw',
+      populate: {
+        ids: { view: policyTarget, onUnresolved: 'filter' },
+      },
+    },
+  },
+})
+type NestedPolicyDoc = typeof nestedPolicyView extends View<infer D, any> ? D : never
+type NestedPolicyCheck = Expect<
+  Equal<NestedPolicyDoc['ref']['ids'], readonly PolicyDoc[] | undefined>
+>
+
+// Check each source shape against default, filter, and successful throw together.
+type PolicyOutcomes<S> = [
+  PopulateField<S, PolicyDoc>,
+  PopulateField<S, PolicyDoc, 'filter'>,
+  PopulateField<S, PolicyDoc, 'throw'>,
+]
+type PreservedArrayPolicyChecks = [
+  Expect<Equal<PolicyOutcomes<string>, [PolicyDoc | null, PolicyDoc | null, PolicyDoc]>>,
+  Expect<
+    Equal<
+      PolicyOutcomes<string | null | undefined>,
+      [PolicyDoc | null | undefined, PolicyDoc | null | undefined, PolicyDoc | null | undefined]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<string[] | null>,
+      [(PolicyDoc | null)[] | null, PolicyDoc[] | null, PolicyDoc[] | null]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<string[] | undefined>,
+      [(PolicyDoc | null)[] | undefined, PolicyDoc[] | undefined, PolicyDoc[] | undefined]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<string | (string | undefined)[]>,
+      [PolicyDoc | null | (PolicyDoc | null | undefined)[], PolicyDoc | null | PolicyDoc[], PolicyDoc | (PolicyDoc | undefined)[]]
+    >
+  >,
+  Expect<Equal<PolicyOutcomes<string[]>, [(PolicyDoc | null)[], PolicyDoc[], PolicyDoc[]]>>,
+  Expect<
+    Equal<
+      PolicyOutcomes<(string | null)[]>,
+      [(PolicyDoc | null)[], PolicyDoc[], (PolicyDoc | null)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<(string | undefined)[]>,
+      [(PolicyDoc | null | undefined)[], PolicyDoc[], (PolicyDoc | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<(string | null | undefined)[]>,
+      [(PolicyDoc | null | undefined)[], PolicyDoc[], (PolicyDoc | null | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<unknown[]>,
+      [(PolicyDoc | null | undefined)[], PolicyDoc[], (PolicyDoc | null | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<any[]>,
+      [(PolicyDoc | null | undefined)[], PolicyDoc[], (PolicyDoc | null | undefined)[]]
+    >
+  >,
+  Expect<Equal<PolicyOutcomes<null[]>, [(PolicyDoc | null)[], PolicyDoc[], (PolicyDoc | null)[]]>>,
+  Expect<
+    Equal<
+      PolicyOutcomes<undefined[]>,
+      [(PolicyDoc | null | undefined)[], PolicyDoc[], (PolicyDoc | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<(null | undefined)[]>,
+      [(PolicyDoc | null | undefined)[], PolicyDoc[], (PolicyDoc | null | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<readonly string[]>,
+      [readonly (PolicyDoc | null)[], readonly PolicyDoc[], readonly PolicyDoc[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<readonly (string | null)[]>,
+      [readonly (PolicyDoc | null)[], readonly PolicyDoc[], readonly (PolicyDoc | null)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<readonly (string | undefined)[]>,
+      [readonly (PolicyDoc | null | undefined)[], readonly PolicyDoc[], readonly (PolicyDoc | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<readonly (string | null | undefined)[]>,
+      [readonly (PolicyDoc | null | undefined)[], readonly PolicyDoc[], readonly (PolicyDoc | null | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<readonly unknown[]>,
+      [readonly (PolicyDoc | null | undefined)[], readonly PolicyDoc[], readonly (PolicyDoc | null | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<readonly any[]>,
+      [readonly (PolicyDoc | null | undefined)[], readonly PolicyDoc[], readonly (PolicyDoc | null | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<readonly null[]>,
+      [readonly (PolicyDoc | null)[], readonly PolicyDoc[], readonly (PolicyDoc | null)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<readonly undefined[]>,
+      [readonly (PolicyDoc | null | undefined)[], readonly PolicyDoc[], readonly (PolicyDoc | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PolicyOutcomes<readonly (null | undefined)[]>,
+      [readonly (PolicyDoc | null | undefined)[], readonly PolicyDoc[], readonly (PolicyDoc | null | undefined)[]]
+    >
+  >,
+  Expect<
+    Equal<
+      PopulateField<(string | undefined)[], PolicyDoc, 'filter' | 'throw'>,
+      (PolicyDoc | undefined)[]
+    >
+  >,
+  Expect<
+    Equal<
+      PopulateField<(string | null | undefined)[], PolicyDoc, 'filter' | 'throw'>,
+      (PolicyDoc | null | undefined)[]
+    >
+  >,
+  Expect<
+    Equal<
+      PopulateField<(string | undefined)[], PolicyDoc, PopulateUnresolvedPolicy>,
+      (PolicyDoc | null | undefined)[]
+    >
+  >,
+  Expect<
+    Equal<
+      PopulateField<null[] | undefined[], PolicyDoc>,
+      (PolicyDoc | null)[] | (PolicyDoc | null | undefined)[]
+    >
+  >,
+  Expect<
+    Equal<
+      PopulateField<null[] | undefined[], PolicyDoc, 'throw'>,
+      (PolicyDoc | null)[] | (PolicyDoc | undefined)[]
+    >
+  >,
+  Expect<Equal<PopulateField<(string | undefined)[], unknown>, unknown[]>>,
+  Expect<Equal<PopulateField<(string | undefined)[], unknown, 'throw'>, unknown[]>>,
+  Expect<Equal<PopulateField<(string | undefined)[], unknown, 'filter'>, unknown[]>>,
+  Expect<Equal<PopulateField<(string | undefined)[], any>, any[]>>,
+  Expect<Equal<PopulateField<(string | undefined)[], any, 'throw'>, any[]>>,
+]
+
+type UndefinedSource = { ids?: readonly (string | undefined)[] }
+type UndefinedEntryChecks = [
+  Expect<
+    Equal<
+      ApplyPopulate<UndefinedSource, { ids: PolicyTarget }>,
+      { ids?: readonly (PolicyDoc | null | undefined)[] }
+    >
+  >,
+  Expect<
+    Equal<
+      ApplyPopulate<UndefinedSource, { ids: { view: PolicyTarget; onUnresolved?: 'throw' } }>,
+      { ids?: readonly (PolicyDoc | null | undefined)[] }
+    >
+  >,
+  Expect<
+    Equal<
+      ApplyPopulate<UndefinedSource, { ids: { view: PolicyTarget; onUnresolved?: 'filter' } }>,
+      { ids?: readonly (PolicyDoc | null | undefined)[] }
+    >
+  >,
+  Expect<
+    Equal<
+      ApplyPopulate<UndefinedSource, { ids: { view: PolicyTarget; onUnresolved: undefined } }>,
+      { ids?: readonly (PolicyDoc | null | undefined)[] }
+    >
+  >,
+  Expect<
+    Equal<
+      ApplyPopulate<UndefinedSource, { ids: { view: PolicyTarget; onUnresolved: 'filter' } | { view: PolicyTarget; onUnresolved: 'throw' } }>,
+      { ids?: readonly (PolicyDoc | undefined)[] }
+    >
+  >,
+  Expect<
+    Equal<
+      ApplyPopulate<UndefinedSource, { ids: PolicyTarget | { view: PolicyTarget; onUnresolved: 'throw' } }>,
+      { ids?: readonly (PolicyDoc | null | undefined)[] }
+    >
+  >,
+]
+
+interface PreservationSource {
+  _id: string
+  shorthand: (string | undefined)[]
+  defaulted: (string | undefined)[]
+  inline: (string | null)[]
+  wrapped: readonly (string | undefined)[]
+  readonly optional?: readonly (string | undefined)[]
+  optionalFilter: (string | undefined)[]
+  broad: (string | undefined)[]
+  union: (string | undefined)[]
+  nullable: string[] | null | undefined
+  ancestor?: { sections: readonly ({ ids?: (string | null | undefined)[] } | null | undefined)[] } | null
+}
+const preservationSources: Collection<PreservationSource> = mockCollection
+const optionalFilterPolicy: { onUnresolved?: 'filter' } = {}
+const preservationView = defineView({
+  collection: preservationSources,
+  populate: {
+    shorthand: policyTarget,
+    defaulted: { view: policyTarget, onUnresolved: undefined },
+    inline: { collection: policyTargets, onUnresolved: 'throw' },
+    wrapped: { view: { collection: policyTargets }, onUnresolved: 'throw' },
+    optional: { view: policyTarget, ...optionalPolicy },
+    optionalFilter: { collection: policyTargets, ...optionalFilterPolicy },
+    broad: { collection: policyTargets, onUnresolved: broadPolicy },
+    union: { view: policyTarget, onUnresolved: unionPolicy },
+    nullable: { view: policyTarget, onUnresolved: 'throw' },
+    'ancestor.sections.ids': { view: policyTarget, onUnresolved: 'throw' },
+  },
+})
+type PreservedDocument = {
+  _id: string
+  shorthand: (PolicyDoc | null | undefined)[]
+  defaulted: (PolicyDoc | null | undefined)[]
+  inline: (PolicyDoc | null)[]
+  wrapped: readonly (PolicyDoc | undefined)[]
+  readonly optional?: readonly (PolicyDoc | null | undefined)[]
+  optionalFilter: (PolicyDoc | null | undefined)[]
+  broad: (PolicyDoc | null | undefined)[]
+  union: (PolicyDoc | undefined)[]
+  nullable: PolicyDoc[] | null | undefined
+  ancestor?: { sections: readonly ({ ids?: (PolicyDoc | null | undefined)[] } | null | undefined)[] } | null
+}
+type PreservationViewCheck = Expect<
+  Equal<
+    typeof preservationView extends View<infer D, any> ? D : never,
+    PreservedDocument
+  >
+>
+type PreservationFindCheck = Expect<
+  Equal<
+    Awaited<ReturnType<typeof preservationView.find>>,
+    PreservedDocument[]
+  >
+>
+type PreservationFindOneCheck = Expect<
+  Equal<
+    Awaited<ReturnType<typeof preservationView.findOne>>,
+    PreservedDocument | null
+  >
+>
+async function testPreservedLoaderTypes(input: readonly (PreservationSource | null | undefined)[]) {
+  const result = await preservationView.read(() => input)
+  type Result = Expect<Equal<typeof result, readonly (PreservedDocument | null | undefined)[]>>
+}
+const preservationParent = defineView({
+  collection: preservationSources,
+  populate: { shorthand: { view: preservationView, onUnresolved: 'throw' } },
+})
+type PreservedParent = typeof preservationParent extends View<infer D, any> ? D : never
+type PreservedNestedTargetCheck = Expect<
+  Equal<
+    PreservedParent['shorthand'],
+    (PreservedDocument | undefined)[]
+  >
+>
