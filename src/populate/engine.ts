@@ -17,7 +17,7 @@ export async function executePopulation(
     const groups = await groupQueryTargets(targets, context)
     const nextLevelWork: LevelWorkItem[] = []
 
-    await Promise.all(groups.map((group) => executeQueryGroup(group, nextLevelWork)))
+    await Promise.all(groups.map((group) => executeQueryGroup(group, nextLevelWork, context)))
 
     currentLevelWork = nextLevelWork
   }

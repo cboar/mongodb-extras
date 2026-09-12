@@ -96,7 +96,7 @@ const allArticles = await articlePreview.find()
 
 Use native options such as `sort`, `skip`, `limit`, `collation`, or `session` as needed. The view owns its projection, so pass selected fields to `defineView` rather than supplying a `projection` option to `find`.
 
-Find options apply only to the root collection query. Relation queries receive the target view's projection, but do not inherit options such as `session` or `collation`. Passing a session therefore does not include relation queries in the root query's transaction.
+Find options apply only to the root collection query, except for `session`, which is propagated to every relation query. This keeps the complete populated read in the same transaction.
 
 ## Find one document
 

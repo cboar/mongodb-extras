@@ -1,5 +1,5 @@
 // Compile-time checks included by tsconfig, not executed by the test runner.
-import { MongoClient, type Collection, type Db, type ObjectId } from 'mongodb'
+import { MongoClient, type ClientSession, type Collection, type Db, type ObjectId } from 'mongodb'
 import {
   defineView,
   lazyDatabase,
@@ -119,6 +119,14 @@ synchronous.read((collection, { projection }) => {
 
 course.find({ title: 'Example' }, { sort: { title: 1 }, limit: 20 })
 course.findOne({ _id: 'course' })
+declare const session: ClientSession
+course.read((collection) => collection.find({}).toArray(), {
+  populateOptions: { session },
+})
+// @ts-expect-error Only options that apply safely to population are accepted.
+course.read((collection) => collection.find({}).toArray(), {
+  populateOptions: { collation: { locale: 'en' } },
+})
 
 // @ts-expect-error Native collection types are preserved, including filter keys/types.
 course.find({ _id: 123 })

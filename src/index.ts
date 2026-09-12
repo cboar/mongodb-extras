@@ -13,5 +13,7 @@ export type {
   ViewConfig,
   ViewFindOneOptions,
   ViewFindOptions,
+  ViewPopulateOptions,
+  ViewReadOptions,
 } from './types/core.ts'
 export type { InferSchema, ViewDocument } from './types/schema.ts'

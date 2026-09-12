@@ -54,6 +54,12 @@ export type ViewFindOneOptions = WithoutOptions<
   | 'timeoutMode'
 >
 
+export type ViewPopulateOptions = Pick<FindOptions, 'session'>
+
+export interface ViewReadOptions {
+  populateOptions?: ViewPopulateOptions
+}
+
 type IsAny<T> = 0 extends 1 & T ? true : false
 
 export type HasCompatibleFindOne<C extends CollectionSource> =
@@ -81,6 +87,7 @@ export interface View<out TDoc = unknown, C extends CollectionSource = Collectio
       collection: ResolvedCollection<C>,
       options: { projection: DocumentSelection | undefined },
     ) => R | Promise<R>,
+    options?: ViewReadOptions,
   ): Promise<ViewReadResult<R, C, TDoc>>
   find(filter?: SourceFilter<C>, options?: ViewFindOptions): Promise<TDoc[]>
   findOne(filter?: SourceFilter<C>, options?: ViewFindOneOptions): Promise<TDoc | null>

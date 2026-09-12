@@ -8,6 +8,8 @@ import type {
   View,
   ViewFindOneOptions,
   ViewFindOptions,
+  ViewPopulateOptions,
+  ViewReadOptions,
 } from '../types/core.ts'
 import type { ViewDocument } from '../types/schema.ts'
 import { getOrCompileViewPlan, viewPlanCache } from './plan.ts'
@@ -30,9 +32,11 @@ export function defineView<
       collection: PopulateCollection,
       options: { projection: DocumentSelection | undefined },
     ) => unknown | Promise<unknown>,
+    populateOptions?: ViewPopulateOptions,
   ): Promise<unknown> {
     const context: ReadContext = {
       providerCache: new Map(),
+      populateOptions,
     }
 
     const rootCollection = await resolveProvider(plan.collection, context)
@@ -58,15 +62,26 @@ export function defineView<
 
   const view = {
     collection: config.collection,
-    read: executeRead,
+    read(
+      loader: (
+        collection: PopulateCollection,
+        options: { projection: DocumentSelection | undefined },
+      ) => unknown | Promise<unknown>,
+      options?: ViewReadOptions,
+    ): Promise<unknown> {
+      return executeRead(loader, options?.populateOptions)
+    },
     find(filter: Record<string, unknown> = {}, options?: ViewFindOptions): Promise<unknown> {
-      return executeRead((collection, { projection }) =>
-        collection.find(filter, { ...options, projection }).toArray(),
+      return executeRead(
+        (collection, { projection }) =>
+          collection.find(filter, { ...options, projection }).toArray(),
+        options?.session ? { session: options.session } : undefined,
       )
     },
     findOne(filter: Record<string, unknown> = {}, options?: ViewFindOneOptions): Promise<unknown> {
-      return executeRead((collection, { projection }) =>
-        collection.findOne(filter, { ...options, projection }),
+      return executeRead(
+        (collection, { projection }) => collection.findOne(filter, { ...options, projection }),
+        options?.session ? { session: options.session } : undefined,
       )
     },
   }

@@ -1,6 +1,6 @@
 {
   "name": "mongodb-extras",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Typed, reusable MongoDB queries with projections and populated relations.",
   "author": "cboar",
   "license": "MIT",

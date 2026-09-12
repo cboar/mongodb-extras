@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import type { ClientSession } from 'mongodb'
 import { defineView } from '../src/index.ts'
 import type { DocumentSelection } from '../src/types/core.ts'
 import { analyzeSelection } from '../src/view/selection.ts'
@@ -54,6 +55,88 @@ test('rejects cursor return from loader', async () => {
     () => view.read((collection) => collection.find({}) as any),
     /must return materialized documents, not a cursor/,
   )
+})
+
+test('propagates find and findOne sessions through nested population queries', async () => {
+  const session = {} as ClientSession
+  const calls: Array<{ collection: string; operation: string; options: any }> = []
+
+  function collection(name: string, documents: any[]) {
+    return {
+      find(_filter: any, options?: any) {
+        calls.push({ collection: name, operation: 'find', options })
+        return { toArray: async () => structuredClone(documents) }
+      },
+      async findOne(_filter: any, options?: any) {
+        calls.push({ collection: name, operation: 'findOne', options })
+        return structuredClone(documents[0] ?? null)
+      },
+    }
+  }
+
+  const grandparents = collection('grandparents', [{ _id: 3, name: 'Grandparent' }])
+  const parents = collection('parents', [{ _id: 2, grandparent: 3 }])
+  const roots = collection('roots', [{ _id: 1, parent: 2 }])
+
+  const grandparentView = defineView({ collection: grandparents })
+  const parentView = defineView({
+    collection: parents,
+    populate: { grandparent: grandparentView },
+  })
+  const rootView = defineView({ collection: roots, populate: { parent: parentView } })
+
+  await rootView.find({}, { session })
+  assert.deepEqual(
+    calls.map(({ collection, operation }) => [collection, operation]),
+    [
+      ['roots', 'find'],
+      ['parents', 'find'],
+      ['grandparents', 'find'],
+    ],
+  )
+  assert.ok(calls.every((call) => call.options.session === session))
+
+  calls.length = 0
+  await rootView.findOne({}, { session })
+  assert.deepEqual(
+    calls.map(({ collection, operation }) => [collection, operation]),
+    [
+      ['roots', 'findOne'],
+      ['parents', 'find'],
+      ['grandparents', 'find'],
+    ],
+  )
+  assert.ok(calls.every((call) => call.options.session === session))
+})
+
+test('accepts population session options for custom read loaders', async () => {
+  const session = {} as ClientSession
+  let relationOptions: any
+  const related = {
+    find(_filter: any, options?: any) {
+      relationOptions = options
+      return { toArray: async () => [{ _id: 2, name: 'Related' }] }
+    },
+    async findOne() {
+      return null
+    },
+  }
+  const root = {
+    find() {
+      return { toArray: async () => [{ _id: 1, related: 2 }] }
+    },
+    async findOne() {
+      return { _id: 1, related: 2 }
+    },
+  }
+  const view = defineView({
+    collection: root,
+    populate: { related: defineView({ collection: related }) },
+  })
+
+  await view.read(() => root.find().toArray(), { populateOptions: { session } })
+
+  assert.equal(relationOptions.session, session)
 })
 
 test('nullish references returned by MongoDB do not resolve provider', async () => {

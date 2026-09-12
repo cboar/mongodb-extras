@@ -1,8 +1,14 @@
-import type { CollectionProvider, CollectionSource, PopulateCollection } from '../types/core.ts'
+import type {
+  CollectionProvider,
+  CollectionSource,
+  PopulateCollection,
+  ViewPopulateOptions,
+} from '../types/core.ts'
 import { getOrCreate } from '../utils/common.ts'
 
 export interface ReadContext {
   providerCache: Map<CollectionProvider, Promise<PopulateCollection>>
+  populateOptions?: ViewPopulateOptions
 }
 
 export async function resolveProvider(

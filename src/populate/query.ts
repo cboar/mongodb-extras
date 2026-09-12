@@ -61,13 +61,17 @@ export async function groupQueryTargets(
 export async function executeQueryGroup(
   group: QueryGroup,
   nextLevelWork: LevelWorkItem[],
+  context: ReadContext,
 ): Promise<void> {
   const resultMap = new Map<string, unknown>()
 
   if (group.keysToFetch.size > 0) {
     const rawIds = Array.from(group.keysToFetch.values())
     const filter = { [group.foreignKey]: { $in: rawIds } }
-    const options = group.projection ? { projection: group.projection } : undefined
+    const options =
+      group.projection || context.populateOptions
+        ? { ...context.populateOptions, projection: group.projection }
+        : undefined
 
     const results = await group.collection.find(filter, options).toArray()
 
