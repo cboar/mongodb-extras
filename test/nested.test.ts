@@ -194,7 +194,7 @@ test('populates sibling and nested paths in subdocuments without arrays', async 
   assert.deepEqual(result.metadata.audit.reviewedBy, { _id: 2, name: 'Bob' })
 })
 
-test('transforms all-nullish reference arrays to nulls and avoids database queries', async () => {
+test('preserves nullish reference arrays returned by MongoDB without target queries', async () => {
   const { users, courses } = await seedDatabase({
     courses: [
       {
@@ -216,9 +216,15 @@ test('transforms all-nullish reference arrays to nulls and avoids database queri
     },
   })
 
-  const result: any = await courseView.read((col) => col.findOne({ _id: 80 }))
+  let loaded: unknown
+  const result: any = await courseView.read(async (col) => {
+    const document = await col.findOne({ _id: 80 })
+    // MongoDB serialization can turn undefined array entries into null.
+    loaded = structuredClone(document?.coAuthors)
+    return document
+  })
   assert.equal(users.queryCount, 0)
-  assert.deepEqual(result.coAuthors, [null, null, null])
+  assert.deepEqual(result.coAuthors, loaded)
 })
 
 test('preserves duplicate references within arrays and across sibling fields with mutation isolation', async () => {

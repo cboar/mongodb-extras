@@ -28,7 +28,7 @@ export function collectReferenceTargets(work: readonly LevelWorkItem[]): Referen
         if (isArray) {
           if (value.length === 0) continue
           if (value.every((val) => val == null)) {
-            parent[key] = relation.onUnresolved === 'filter' ? [] : value.map(() => null)
+            if (relation.onUnresolved === 'filter') parent[key] = []
             continue
           }
         } else if (value == null) {
@@ -84,7 +84,7 @@ function writeArray(
 
 export function writeTarget(target: ReferenceTarget, resolveKey: (key: string) => unknown): void {
   const resolve = (value: unknown, index: number): unknown => {
-    if (value == null) return null
+    if (value == null) return value
     const key = target.lookupKeys[index]
     const errorIndex = target.isArray ? index : undefined
     if (key == null) return unresolved(target.relation, 'unkeyable', errorIndex)

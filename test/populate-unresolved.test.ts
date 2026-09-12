@@ -22,9 +22,9 @@ function collection(documents: Record<string, any>[] = []) {
   }
 }
 
-const policies = [undefined, 'null', 'filter', 'throw'] as const
+const policies = ['omitted', undefined, 'null', 'filter', 'throw'] as const
 for (const policy of policies) {
-  test(`${policy}: empty, absent, nullish and sparse values preserve compatibility`, async () => {
+  test(`${policy}: empty, absent, nullish and sparse values preserve source entries`, async () => {
     let calls = 0
     const target = collection()
     const view = defineView({
@@ -35,7 +35,7 @@ for (const policy of policies) {
             calls++
             return target
           },
-          onUnresolved: policy,
+          ...(policy === 'omitted' ? {} : { onUnresolved: policy }),
         },
       },
     })
@@ -51,6 +51,9 @@ for (const policy of policies) {
         { ids: [] },
         { ids: [null, undefined] },
         { ids: sparse },
+        { ids: [undefined] },
+        { ids: [null] },
+        { ids: new Array(3) },
       ],
     }
     const result: any = await view.read(() => input)
@@ -62,10 +65,17 @@ for (const policy of policies) {
       { ids: undefined },
       { ids: [] },
     ])
-    assert.deepEqual(result.sections[6].ids, policy === 'filter' ? [] : [null, null])
+    assert.deepEqual(result.sections[6].ids, policy === 'filter' ? [] : [null, undefined])
     const expected = new Array(3)
-    expected[1] = null
+    expected[1] = undefined
     assert.deepEqual(result.sections[7].ids, policy === 'filter' ? [] : expected)
+    assert.deepEqual(result.sections[8].ids, policy === 'filter' ? [] : [undefined])
+    assert.deepEqual(result.sections[9].ids, policy === 'filter' ? [] : [null])
+    assert.deepEqual(result.sections[10].ids, policy === 'filter' ? [] : new Array(3))
+    assert.equal(Object.hasOwn(result.sections[7].ids, 1), policy !== 'filter')
+    assert.equal(Object.hasOwn(result.sections[7].ids, 0), false)
+    assert.equal(Object.hasOwn(result.sections[4], 'ids'), true)
+    assert.equal(Object.hasOwn(result.sections[2], 'ids'), false)
     assert.equal(calls, 0)
     assert.equal(target.queries, 0)
     assert.equal(await view.read(() => null), null)
@@ -83,7 +93,7 @@ for (const policy of policies) {
     ])
     const view = defineView({
       collection: collection(),
-      populate: { ref: { collection: target, onUnresolved: policy } },
+      populate: { ref: { collection: target, ...(policy === 'omitted' ? {} : { onUnresolved: policy }) } },
     })
     assert.deepEqual(await view.read(() => ({ ref: 'a' })), { ref: { _id: 'a', nullable: null } })
     const values = ['b', 'missing', null, undefined, 'a', 'b']
@@ -107,15 +117,27 @@ for (const policy of policies) {
         view.read(() => ({ ref: 'missing' })),
         { index: undefined },
       )
+      assert.deepEqual(await view.read(() => ({ ref: ['a', null] })), {
+        ref: [{ _id: 'a', nullable: null }, null],
+      })
       assert.deepEqual(await view.read(() => ({ ref: ['a', null, undefined] })), {
-        ref: [{ _id: 'a', nullable: null }, null, null],
+        ref: [{ _id: 'a', nullable: null }, null, undefined],
       })
     } else {
       assert.deepEqual(await view.read(() => ({ ref: 'missing' })), { ref: null })
       const result: any = await view.read(() => ({ ref: values }))
       assert.deepEqual(
-        result.ref.map((doc: any) => doc?._id ?? null),
-        policy === 'filter' ? ['b', 'a', 'b'] : ['b', null, null, null, 'a', 'b'],
+        result.ref,
+        policy === 'filter'
+          ? [{ _id: 'b', nullable: null }, { _id: 'a', nullable: null }, { _id: 'b', nullable: null }]
+          : [
+              { _id: 'b', nullable: null },
+              null,
+              null,
+              undefined,
+              { _id: 'a', nullable: null },
+              { _id: 'b', nullable: null },
+            ],
       )
       assert.notEqual(result.ref[0], result.ref.at(-1))
       result.ref[0].nullable = 'changed'
@@ -124,12 +146,21 @@ for (const policy of policies) {
         ref: policy === 'filter' ? [] : [null],
       })
     }
-    const sparse = new Array(4)
+    const sparse = new Array(6)
     sparse[1] = 'a'
     sparse[3] = null
+    sparse[4] = undefined
+    sparse[5] = 'a'
     const result: any = await view.read(() => ({ ref: sparse }))
-    assert.equal(result.ref.length, policy === 'filter' ? 1 : 4)
+    const expected = new Array(6)
+    expected[1] = { _id: 'a', nullable: null }
+    expected[3] = null
+    expected[4] = undefined
+    expected[5] = { _id: 'a', nullable: null }
+    assert.deepEqual(result.ref, policy === 'filter' ? [expected[1], expected[5]] : expected)
     assert.equal(0 in result.ref, policy === 'filter')
+    assert.equal(4 in result.ref, policy !== 'filter')
+    assert.notEqual(result.ref[policy === 'filter' ? 0 : 1], result.ref.at(-1))
   })
 }
 
@@ -147,14 +178,14 @@ test('all entry forms support destination policies, custom keys, and shared quer
     },
   })
   const result: any = await view.read(() => ({
-    shorthand: ['missing'],
-    defaulted: ['missing'],
+    shorthand: ['missing', undefined],
+    defaulted: ['missing', undefined],
     strict: ['a'],
     filtered: ['missing', 'a'],
     inline: ['a', null],
   }))
-  assert.deepEqual(result.shorthand, [null])
-  assert.deepEqual(result.defaulted, [null])
+  assert.deepEqual(result.shorthand, [null, undefined])
+  assert.deepEqual(result.defaulted, [null, undefined])
   assert.deepEqual(result.filtered, result.strict)
   assert.deepEqual(result.inline, result.strict)
   assert.equal(target.queries, 1)
@@ -172,7 +203,10 @@ test('all entry forms support destination policies, custom keys, and shared quer
 
 test('filter only compacts the leaf, and child policies remain destination-specific', async () => {
   const children = collection([{ _id: 'child' }])
-  const parents = collection([{ _id: 'parent', refs: ['child', null, 'missing'] }])
+  const parents = collection([
+    { _id: 'parent', refs: ['child', null, undefined, 'missing'] },
+    { _id: 'empty', refs: [null, undefined, 'missing'] },
+  ])
   const root = defineView({
     collection: collection(),
     populate: {
@@ -184,17 +218,26 @@ test('filter only compacts the leaf, and child policies remain destination-speci
         populate: { refs: { collection: children, onUnresolved: 'filter' } },
       },
       defaulted: { collection: parents, populate: { refs: { collection: children } } },
+      emptied: {
+        collection: parents,
+        onUnresolved: 'filter',
+        populate: { refs: { collection: children, onUnresolved: 'filter' } },
+      },
     },
   })
   const result: any = await root.read(() => ({
-    sections: [null, { author: 'missing', reviewers: ['missing', 'child'] }],
+    sections: [null, undefined, { author: 'missing', reviewers: ['missing', undefined, null, 'child'] }],
     filtered: 'parent',
     defaulted: 'parent',
+    emptied: ['empty'],
   }))
-  assert.deepEqual(result.sections, [null, { author: null, reviewers: [{ _id: 'child' }] }])
+  assert.deepEqual(result.sections, [null, undefined, { author: null, reviewers: [{ _id: 'child' }] }])
   assert.deepEqual(result.filtered.refs, [{ _id: 'child' }])
-  assert.deepEqual(result.defaulted.refs, [{ _id: 'child' }, null, null])
+  assert.deepEqual(result.defaulted.refs, [{ _id: 'child' }, null, undefined, null])
   assert.equal(parents.queries, 1)
+  assert.equal(children.queries, 2) // Root leaves, then one shared child query.
+  assert.equal(result.filtered._id, 'parent')
+  assert.deepEqual(result.emptied, [{ _id: 'empty', refs: [] }])
   const strictChild = defineView({
     collection: collection(),
     populate: {
@@ -207,7 +250,7 @@ test('filter only compacts the leaf, and child policies remain destination-speci
   })
   await assert.rejects(
     strictChild.read(() => ({ parent: 'parent' })),
-    { path: 'refs', index: 2 },
+    { path: 'refs', index: 3 },
   )
 })
 
@@ -312,3 +355,46 @@ test('invalid JavaScript policies fail during compilation', () => {
     }
   }
 })
+
+for (const policy of policies) {
+  for (const method of ['read', 'find', 'findOne'] as const) {
+    test(`${policy}: ${method} applies its nullish policy to explicit loader entries`, async () => {
+      const source = { ref: ['a', null, undefined] }
+      const view = defineView({
+        collection: collection([source]),
+        populate: {
+          ref: {
+            collection: collection([{ _id: 'a' }]),
+            ...(policy === 'omitted' ? {} : { onUnresolved: policy }),
+          },
+        },
+      })
+      const result: any =
+        method === 'read'
+          ? await view.read(() => structuredClone(source))
+          : method === 'find'
+            ? (await view.find())[0]
+            : await view.findOne()
+      assert.deepEqual(result.ref, policy === 'filter' ? [{ _id: 'a' }] : [{ _id: 'a' }, null, undefined])
+      assert.equal(Object.hasOwn(result.ref, 2), policy !== 'filter')
+    })
+  }
+}
+
+for (const [value, reason] of [['missing', 'not-found'], [Symbol('private'), 'unkeyable']] as const) {
+  test(`strict ${reason} retains the index after nullish entries and a hole`, async () => {
+    const view = defineView({
+      collection: collection(),
+      populate: { ref: { collection: collection([{ _id: 'a' }]), onUnresolved: 'throw' } },
+    })
+    const input: unknown[] = ['a', null, undefined]
+    input.length = 4
+    input.push(value)
+    await assert.rejects(view.read(() => ({ ref: input })), {
+      name: 'PopulateUnresolvedError',
+      reason,
+      path: 'ref',
+      index: 4,
+    })
+  })
+}

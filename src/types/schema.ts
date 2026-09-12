@@ -80,9 +80,9 @@ export type ApplyProjection<T, S, IsRoot extends boolean = true> = S extends und
       ? T
       : IsInclusive<S> extends true
         ? {
-            [
-              K in keyof T as K extends DirectKeys<S, IsRoot> | SubKeys<S> ? K : never
-            ]: K extends DirectKeys<S, IsRoot>
+            [K in keyof T as K extends DirectKeys<S, IsRoot> | SubKeys<S>
+              ? K
+              : never]: K extends DirectKeys<S, IsRoot>
               ? T[K]
               : K extends string
                 ? ApplyProjectionNested<T[K], SubSelect<S, K>>
@@ -119,33 +119,31 @@ export type TargetDocFromEntry<E> = E extends { view: infer V }
 
 type UnresolvedPolicyOf<E> = E extends unknown
   ? 'onUnresolved' extends keyof E
-    ? | Extract<E['onUnresolved'], PopulateUnresolvedPolicy>
-      | (undefined extends E['onUnresolved'] ? 'null' : never)
+    ?
+        | Extract<E['onUnresolved'], PopulateUnresolvedPolicy>
+        | (undefined extends E['onUnresolved'] ? 'null' : never)
     : 'null'
   : never
 
-type ArrayNull<Item, P extends PopulateUnresolvedPolicy> = 'null' extends P
-  ? null
-  : 'throw' extends P
-    ? null extends Item
-      ? null
-      : undefined extends Item
-        ? null
-        : never
-    : never
+type ArrayNullish<Item, P extends PopulateUnresolvedPolicy> = P extends 'filter'
+  ? never
+  :
+      | (P extends 'null' ? null : never)
+      | (null extends Item ? null : never)
+      | (undefined extends Item ? undefined : never)
 
 /**
  * Transforms a relation leaf according to its unresolved policy, preserving source
- * scalar nullability and normalizing nullish array entries unless filtered.
+ * scalar nullability and explicit null/undefined array entries unless filtered.
  */
 export type PopulateField<S, D, P extends PopulateUnresolvedPolicy = 'null'> = S extends undefined
   ? undefined
   : S extends null
     ? null
     : S extends (infer Item)[]
-      ? (D | ArrayNull<Item, P>)[]
+      ? (D | ArrayNullish<Item, P>)[]
       : S extends readonly (infer Item)[]
-        ? readonly (D | ArrayNull<Item, P>)[]
+        ? readonly (D | ArrayNullish<Item, P>)[]
         : D | (P extends 'throw' ? never : null)
 
 export type SubPopulate<P, K extends string> = {
@@ -185,7 +183,8 @@ export type ApplyPopulateNested<TValue, SubP> = TValue extends undefined
         : ApplyPopulate<TValue, SubP>
 
 type IsPathExcluded<Path extends string, S> = Path extends
-  ExcludedKeys<S> | `${ExcludedKeys<S> & string}.${string}`
+  | ExcludedKeys<S>
+  | `${ExcludedKeys<S> & string}.${string}`
   ? true
   : false
 
@@ -196,13 +195,11 @@ export type PopulateKeysSelection<P, S> = P extends undefined
     : string extends keyof P
       ? {}
       : {
-          [
-            K in keyof P as K extends string
-              ? IsPathExcluded<K, S> extends true
-                ? never
-                : K
-              : never
-          ]: 1
+          [K in keyof P as K extends string
+            ? IsPathExcluded<K, S> extends true
+              ? never
+              : K
+            : never]: 1
         }
 
 /**
