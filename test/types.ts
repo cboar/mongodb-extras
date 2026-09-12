@@ -142,6 +142,10 @@ course.findOne({}, { batchSize: 1 })
 // @ts-expect-error findOne does not accept timeoutMode in options
 course.findOne({}, { timeoutMode: 'cursorLifetime' })
 
+declare const optionsWithTimeoutMode: { sort: { title: 1 }; timeoutMode?: 'cursorLifetime' }
+// @ts-expect-error Options containing timeoutMode are rejected even with older driver types
+course.findOne({}, optionsWithTimeoutMode)
+
 // Detached method call compatibility
 const { find: detachedFind, findOne: detachedFindOne } = course
 detachedFind()

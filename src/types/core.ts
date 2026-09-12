@@ -33,7 +33,7 @@ export type SourceFilter<C extends CollectionSource> =
       ? Filter<InferSchema<C>>
       : Record<string, unknown>
 
-type WithoutOptions<T, K extends keyof T> = Omit<T, K> & {
+type WithoutOptions<T, K extends PropertyKey> = Omit<T, K> & {
   [P in K]?: never
 }
 
