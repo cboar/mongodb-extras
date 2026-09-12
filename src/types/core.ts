@@ -74,7 +74,7 @@ type ViewReadResult<R, C extends CollectionSource, TDoc> = unknown extends TDoc
   ? Awaited<R>
   : MapLoaderResult<Awaited<R>, InferSchema<C>, TDoc>
 
-export interface View<TDoc = unknown, C extends CollectionSource = CollectionSource> {
+export interface View<out TDoc = unknown, C extends CollectionSource = CollectionSource> {
   readonly collection: C
   read<R = TDoc>(
     loader: (
