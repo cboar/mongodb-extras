@@ -57,7 +57,7 @@ test('rejects cursor return from loader', async () => {
   )
 })
 
-test('propagates find and findOne sessions through nested population queries', async () => {
+test('propagates find, findOne and findByIds sessions through nested population queries', async () => {
   const session = {} as ClientSession
   const calls: Array<{ collection: string; operation: string; options: any }> = []
 
@@ -102,6 +102,18 @@ test('propagates find and findOne sessions through nested population queries', a
     calls.map(({ collection, operation }) => [collection, operation]),
     [
       ['roots', 'findOne'],
+      ['parents', 'find'],
+      ['grandparents', 'find'],
+    ],
+  )
+  assert.ok(calls.every((call) => call.options.session === session))
+
+  calls.length = 0
+  await rootView.findByIds([1, 1], { session })
+  assert.deepEqual(
+    calls.map(({ collection, operation }) => [collection, operation]),
+    [
+      ['roots', 'find'],
       ['parents', 'find'],
       ['grandparents', 'find'],
     ],

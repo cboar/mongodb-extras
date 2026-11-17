@@ -98,6 +98,10 @@ export type ApplyProjection<T, S, IsRoot extends boolean = true> = S extends und
 
 type EnsureCollectionSource<C> = C extends CollectionSource ? C : CollectionSource
 
+/** Extracts the projected, populated document type returned by a view. */
+export type InferViewDocument<V extends View<unknown, any>> =
+  V extends View<infer D, any> ? D : never
+
 export type TargetDocFromConfig<V> =
   V extends View<infer TDoc, any>
     ? TDoc

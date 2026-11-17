@@ -6,6 +6,7 @@ import type {
   PopulateMap,
   ValidatePopulateMap,
   View,
+  ViewFindByIdsOptions,
   ViewFindOneOptions,
   ViewFindOptions,
   ViewPopulateOptions,
@@ -15,6 +16,8 @@ import type { ViewDocument } from '../types/schema.ts'
 import { getOrCompileViewPlan, viewPlanCache } from './plan.ts'
 import { executePopulation } from '../populate/engine.ts'
 import { resolveProvider, type ReadContext } from '../database/context.ts'
+import { findDocumentsByIds } from '../database/find-by-ids.ts'
+import { toIdKeyString } from '../utils/common.ts'
 
 export function defineView<
   const C extends CollectionSource,
@@ -77,6 +80,23 @@ export function defineView<
           collection.find(filter, { ...options, projection }).toArray(),
         options?.session ? { session: options.session } : undefined,
       )
+    },
+    async findByIds(ids: readonly unknown[], options?: ViewFindByIdsOptions): Promise<unknown> {
+      if (ids.length === 0) return []
+      if (Object.keys(plan.select ?? {}).some((key) => key.startsWith('_id.'))) {
+        throw new TypeError('findByIds does not support partial _id projections')
+      }
+
+      let documents = new Map<string | null, Record<string, unknown>>()
+      await executeRead(
+        async (collection, { projection }) => {
+          documents = await findDocumentsByIds(collection, ids, projection, options)
+          // Populate each document once, before expanding duplicate input IDs.
+          return Array.from(documents.values())
+        },
+        options?.session ? { session: options.session } : undefined,
+      )
+      return ids.map((id) => documents.get(toIdKeyString(id)) ?? null)
     },
     findOne(filter: Record<string, unknown> = {}, options?: ViewFindOneOptions): Promise<unknown> {
       return executeRead(

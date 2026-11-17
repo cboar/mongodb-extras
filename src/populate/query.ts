@@ -9,8 +9,28 @@ export interface QueryGroup {
   readonly collection: PopulateCollection
   readonly foreignKey: string
   readonly projection?: DocumentSelection
+  readonly filter?: Record<string, unknown>
   readonly targets: ReferenceTarget[]
   readonly keysToFetch: Map<string, unknown>
+}
+
+type FilterKey = string | Record<string, unknown>
+
+function getFilterKey(filter: Record<string, unknown>): FilterKey {
+  const entries = Object.entries(filter)
+  for (const [field, value] of entries) {
+    if (field.startsWith('$')) return filter
+    if (
+      value !== null &&
+      typeof value !== 'string' &&
+      typeof value !== 'boolean' &&
+      !(typeof value === 'number' && Number.isFinite(value))
+    ) {
+      return filter
+    }
+  }
+  entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  return JSON.stringify(entries)
 }
 
 export async function groupQueryTargets(
@@ -24,8 +44,12 @@ export async function groupQueryTargets(
   )
   const resolved = new Map(uniqueSources.map((source, i) => [source, collections[i]!]))
 
-  // Group targets by (resolvedCollection, foreignKey, selectionKey)
-  const collectionMap = new Map<PopulateCollection, Map<string, Map<string, QueryGroup>>>()
+  // Flat scalar equality filters batch by value; complex filters use identity.
+  const collectionMap = new Map<
+    PopulateCollection,
+    Map<string, Map<string, Map<FilterKey | undefined, QueryGroup>>>
+  >()
+  const filterKeys = new Map<Record<string, unknown>, FilterKey>()
   const groups: QueryGroup[] = []
 
   for (const target of targets) {
@@ -33,11 +57,17 @@ export async function groupQueryTargets(
 
     const foreignKeyMap = getOrCreate(collectionMap, resolvedCollection, () => new Map())
     const selectionMap = getOrCreate(foreignKeyMap, target.relation.foreignKey, () => new Map())
-    const group = getOrCreate(selectionMap, target.relation.targetView.selectionKey, () => {
+    const filterMap = getOrCreate(selectionMap, target.relation.targetView.selectionKey, () => new Map())
+    const { filter } = target.relation
+    const filterKey = filter === undefined
+      ? undefined
+      : getOrCreate(filterKeys, filter, () => getFilterKey(filter))
+    const group = getOrCreate(filterMap, filterKey, () => {
       const newGroup: QueryGroup = {
         collection: resolvedCollection,
         foreignKey: target.relation.foreignKey,
         projection: target.relation.targetView.select,
+        filter: target.relation.filter,
         targets: [],
         keysToFetch: new Map(),
       }
@@ -67,7 +97,8 @@ export async function executeQueryGroup(
 
   if (group.keysToFetch.size > 0) {
     const rawIds = Array.from(group.keysToFetch.values())
-    const filter = { [group.foreignKey]: { $in: rawIds } }
+    const lookup = { [group.foreignKey]: { $in: rawIds } }
+    const filter = group.filter === undefined ? lookup : { $and: [lookup, group.filter] }
     const options =
       group.projection || context.populateOptions
         ? { ...context.populateOptions, projection: group.projection }

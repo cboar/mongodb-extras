@@ -42,6 +42,15 @@ export type ViewFindOptions = WithoutOptions<
   'projection' | 'explain' | 'raw' | 'returnKey'
 >
 
+export type ViewFindByIdsOptions = WithoutOptions<
+  ViewFindOptions,
+  'sort' | 'skip' | 'limit' | 'collation'
+>
+
+type SourceId<C extends CollectionSource> = '_id' extends keyof InferSchema<C>
+  ? InferSchema<C>['_id']
+  : unknown
+
 export type ViewFindOneOptions = WithoutOptions<
   FindOptions,
   | 'batchSize'
@@ -90,6 +99,7 @@ export interface View<out TDoc = unknown, C extends CollectionSource = Collectio
     options?: ViewReadOptions,
   ): Promise<ViewReadResult<R, C, TDoc>>
   find(filter?: SourceFilter<C>, options?: ViewFindOptions): Promise<TDoc[]>
+  findByIds(ids: readonly SourceId<C>[], options?: ViewFindByIdsOptions): Promise<(TDoc | null)[]>
   findOne(filter?: SourceFilter<C>, options?: ViewFindOneOptions): Promise<TDoc | null>
 }
 
@@ -101,13 +111,14 @@ export interface ViewConfig<C extends CollectionSource = CollectionSource> {
 
 export type PopulateUnresolvedPolicy = 'null' | 'filter' | 'throw'
 
-interface RelationOptions {
+interface RelationOptions<C extends CollectionSource = CollectionSource> {
   foreignKey?: string
   onUnresolved?: PopulateUnresolvedPolicy
+  filter?: SourceFilter<C>
 }
 
 export interface RelationConfig<C extends CollectionSource = CollectionSource>
-  extends ViewConfig<C>, RelationOptions {}
+  extends ViewConfig<C>, RelationOptions<C> {}
 
 type AnyView = View<unknown, any>
 
@@ -136,13 +147,17 @@ type ValidateViewConfig<V, Options extends object = {}> = V extends AnyView
         }
     : AnyView | (ViewConfig & Options)
 
+type RelationSource<V> = V extends { collection: infer C extends CollectionSource }
+  ? C
+  : CollectionSource
+
 type ValidateRelationEntry<E> = E extends { view: unknown }
   ? {
       view: ValidateViewConfig<E['view']>
-    } & RelationOptions & {
+    } & RelationOptions<RelationSource<E['view']>> & {
         [K in Exclude<keyof E, 'view' | keyof RelationOptions>]: never
       }
-  : ValidateViewConfig<E, RelationOptions>
+  : ValidateViewConfig<E, RelationOptions<RelationSource<E>>>
 
 export type ValidatePopulateMap<P> = P extends undefined
   ? undefined
