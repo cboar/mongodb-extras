@@ -4,7 +4,7 @@ TypeScript projection inference and reference population for the native MongoDB 
 
 Define reusable queries with typed projections and populated relations, without Mongoose or an ORM. Use your existing MongoDB collections, filters, and sessions.
 
-[npm package](https://www.npmjs.com/package/mongodb-extras) · [GitHub](https://github.com/cboar/mongodb-extras)
+[Documentation](https://cboar.github.io/mongodb-extras/) · [npm package](https://www.npmjs.com/package/mongodb-extras) · [GitHub](https://github.com/cboar/mongodb-extras)
 
 ## Install
 

@@ -2,4 +2,5 @@ node_modules
 .mongodb
 dist
 *.tgz
-docs
+dev/
+docs/.astro/
