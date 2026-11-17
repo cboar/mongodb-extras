@@ -11,9 +11,10 @@ export type {
   PopulateUnresolvedPolicy,
   View,
   ViewConfig,
+  ViewFindByIdsOptions,
   ViewFindOneOptions,
   ViewFindOptions,
   ViewPopulateOptions,
   ViewReadOptions,
 } from './types/core.ts'
-export type { InferSchema, ViewDocument } from './types/schema.ts'
+export type { InferSchema, InferViewDocument, ViewDocument } from './types/schema.ts'

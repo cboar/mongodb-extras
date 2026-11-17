@@ -21,6 +21,7 @@ interface NormalizedRelation {
   readonly targetView: ViewPlan
   readonly foreignKey: string
   readonly onUnresolved: PopulateUnresolvedPolicy
+  readonly filter?: Record<string, unknown>
 }
 
 export interface CompiledRelation extends NormalizedRelation {
@@ -108,6 +109,7 @@ export function normalizeRelation(rel: PopulateRelationEntry): NormalizedRelatio
 
   return {
     onUnresolved,
+    filter: 'filter' in rel ? rel.filter : undefined,
     targetView: getOrCompileViewPlan('view' in rel ? rel.view : rel),
     foreignKey,
   }
@@ -138,7 +140,7 @@ export function compilePopulate(populateMap: PopulateMap): CompiledRelation[] {
 
   for (const [path, rel] of Object.entries(populateMap)) {
     const segments = path.split('.')
-    const { targetView, foreignKey, onUnresolved } = normalizeRelation(rel)
+    const { targetView, foreignKey, onUnresolved, filter } = normalizeRelation(rel)
 
     if (!isFieldRetainedInPlan(targetView, foreignKey)) {
       throw new TypeError(
@@ -146,7 +148,7 @@ export function compilePopulate(populateMap: PopulateMap): CompiledRelation[] {
       )
     }
 
-    entries.push({ path, segments, targetView, foreignKey, onUnresolved })
+    entries.push({ path, segments, targetView, foreignKey, onUnresolved, filter })
   }
 
   return entries

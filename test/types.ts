@@ -5,6 +5,7 @@ import {
   lazyDatabase,
   type CollectionSource,
   type DocumentSelection,
+  type InferViewDocument,
   type PopulateMap,
   type View,
   type ViewConfig,
@@ -90,6 +91,25 @@ const course = defineView({
   select: { title: 1, partner: 1 },
   populate: { partner },
 })
+type ExtractedCourse = Expect<Equal<InferViewDocument<typeof course>, {
+  _id: string
+  title: string
+  partner: { name: string } | null
+}>>
+const orderedCourses = course.findByIds(['a', 'b'] as const)
+type OrderedCourses = Expect<Equal<Awaited<typeof orderedCourses>, (InferViewDocument<typeof course> | null)[]>>
+// @ts-expect-error IDs use the source schema.
+course.findByIds([123])
+// @ts-expect-error Ordered lookup does not accept sort.
+course.findByIds([], { sort: { title: 1 } })
+
+defineView({ collection: courses, populate: {
+  partner: { view: partner, filter: { _id: 'a', name: { $ne: 'Hidden' } } },
+  // @ts-expect-error Filters use the unprojected source schema.
+  invalidWrapped: { view: partner, filter: { _id: 123 } },
+  // @ts-expect-error Inline target filters retain source field types.
+  invalidInline: { collection: partners, filter: { name: 123 } },
+} })
 type Source = Expect<Equal<typeof course.collection, typeof Courses>>
 type ConcreteSource = Expect<Equal<typeof partner.collection, Collection<Partner>>>
 

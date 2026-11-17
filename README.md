@@ -98,6 +98,14 @@ Use native options such as `sort`, `skip`, `limit`, `collation`, or `session` as
 
 Find options apply only to the root collection query, except for `session`, which is propagated to every relation query. This keeps the complete populated read in the same transaction.
 
+## Find documents in ID order
+
+Use `findByIds` to return documents in input order:
+
+```ts
+const articles = await articlePreview.findByIds([secondId, firstId, secondId])
+```
+
 ## Find one document
 
 `findOne` applies the same projection and population rules and returns `null` when no document matches.
@@ -213,6 +221,18 @@ const articleView = defineView({
 - `'null'` (default) replaces unresolved references with `null`.
 - `'filter'` removes unresolved matches and any existing nullish values from reference arrays.
 - `'throw'` throws a `PopulateUnresolvedError` if a reference cannot be resolved.
+
+Use `filter` to limit populated targets:
+
+```ts
+populate: {
+  reviewerIds: {
+    view: userPreview,
+    filter: { name: { $ne: 'Hidden' } },
+    onUnresolved: 'filter',
+  },
+}
+```
 
 ## Reuse views
 
