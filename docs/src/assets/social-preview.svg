@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#09251b" />
+  <path d="M1070 0H1200V630H880Z" fill="#0b3023" />
+  <path d="M1160 0H1200V630H970Z" fill="#0d3929" />
+  <rect x="0" y="0" width="1200" height="8" fill="#48db9b" />
+
+  <svg x="80" y="64" width="112" height="112" viewBox="0 0 64 64">
+    <rect width="64" height="64" rx="14" fill="#006741" />
+    <path d="M14 46V22h7v3c3-5 10-5 13 0 5-6 16-5 16 5v16h-7V32c0-6-8-6-8 0v14h-7V32c0-6-7-6-7 0v14z" transform="translate(-4 4) scale(.85)" fill="#fff" />
+    <path d="M43 31h12M49 25v12" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="square" />
+  </svg>
+
+  <g font-family="Noto Sans, sans-serif">
+    <text x="80" y="286" font-size="76" font-weight="700" letter-spacing="-3" fill="#ffffff">mongodb-extras</text>
+    <text x="80" y="360" font-size="38" fill="#d3e9dd">TypeScript projections.</text>
+    <text x="80" y="414" font-size="38" fill="#d3e9dd">Populated references.</text>
+    <rect x="80" y="483" width="440" height="58" rx="8" fill="#114932" />
+    <text x="102" y="521" font-size="24" font-weight="600" fill="#8af0ba">Native MongoDB driver · No ORM</text>
+    <text x="1120" y="581" font-size="21" text-anchor="end" fill="#94b4a3">cboar.github.io/mongodb-extras</text>
+  </g>
+</svg>
