@@ -2,28 +2,35 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  queue: max
+
 jobs:
   verify:
+    if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/ci.yml
 
   release:
-    name: Publish to npm
+    name: Tag and publish package version
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: read
+      contents: write
       id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -32,25 +39,82 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
-      - name: Verify Git tag matches package.json version
+      - name: Select package version
+        id: version
         run: |
-          PKG_VERSION="v$(node -p "require('./package.json').version")"
-          if [ "$GITHUB_REF_NAME" != "$PKG_VERSION" ]; then
-            echo "Error: Git tag ($GITHUB_REF_NAME) does not match package.json version ($PKG_VERSION)"
-            exit 1
+          TAG="v$(node -p "require('./package.json').version")"
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            if [[ "$(git rev-parse "$TAG^{commit}")" != "$GITHUB_SHA" ]]; then
+              echo "$TAG already belongs to an earlier release; skipping."
+              exit 0
+            fi
           fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Check npm publication
+        if: steps.version.outputs.tag != ''
+        id: npm
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs'
+
+          const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'))
+          const response = await fetch(
+            `https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+          )
+          if (!response.ok && response.status !== 404) {
+            throw new Error(`npm registry returned HTTP ${response.status}`)
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `published=${response.ok}\n`)
+          console.log(`${name}@${version}: ${response.ok ? 'already published' : 'ready to publish'}`)
+          NODE
 
       - name: Install dependencies
+        if: steps.npm.outputs.published == 'false'
         run: npm ci
 
+      - name: Verify package build
+        if: steps.npm.outputs.published == 'false'
+        run: npm pack --dry-run
+
+      - name: Create release tag
+        if: steps.version.outputs.tag != ''
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if ! git show-ref --verify --quiet "refs/tags/$TAG"; then
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+
       - name: Publish package to npm
+        if: steps.npm.outputs.published == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           # Configure npm trusted publishing for cboar/mongodb-extras and release.yml.
           # NPM_TOKEN remains available for the initial publish or token fallback.
-          DIST_TAG=latest
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
-            DIST_TAG=next
+          # Leave latest implicit so npm rejects older stable versions.
+          ARGS=(--provenance --access public)
+          if [[ "$TAG" == *-* ]]; then
+            ARGS+=(--tag next)
           fi
-          npm publish --provenance --access public --tag "$DIST_TAG"
+          npm publish "${ARGS[@]}"
+
+      - name: Create release with generated notes
+        if: steps.version.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "GitHub release $TAG already exists; skipping."
+            exit 0
+          fi
+          ARGS=(--verify-tag --generate-notes --title "$TAG")
+          if [[ "$TAG" == *-* ]]; then
+            ARGS+=(--prerelease)
+          fi
+          gh release create "$TAG" "${ARGS[@]}"

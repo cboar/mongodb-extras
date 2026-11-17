@@ -1,7 +1,7 @@
 {
   "name": "mongodb-extras",
-  "version": "0.4.0",
-  "description": "Typed, reusable MongoDB queries with projections and populated relations.",
+  "version": "0.4.1",
+  "description": "TypeScript projection inference and reference population for the native MongoDB Node.js driver, without an ORM.",
   "author": "cboar",
   "license": "MIT",
   "type": "module",
@@ -26,20 +26,30 @@
     "type": "git",
     "url": "git+https://github.com/cboar/mongodb-extras.git"
   },
-  "homepage": "https://github.com/cboar/mongodb-extras#readme",
+  "homepage": "https://cboar.github.io/mongodb-extras/",
   "bugs": {
     "url": "https://github.com/cboar/mongodb-extras/issues"
   },
   "keywords": [
     "mongodb",
+    "mongo",
+    "typescript",
+    "nodejs",
     "populate",
+    "projection",
     "relations",
     "views",
-    "typescript",
-    "find",
-    "findOne"
+    "type-inference",
+    "type-safe",
+    "lightweight",
+    "mongoose",
+    "no-orm",
+    "odm"
   ],
   "scripts": {
+    "docs:dev": "npm --prefix docs run dev",
+    "docs:build": "npm --prefix docs run build",
+    "docs:preview": "npm --prefix docs run preview",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "prepack": "npm run build",
