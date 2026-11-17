@@ -1,8 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
+  # release.yml calls this workflow to verify pushes to main.
   pull_request:
     branches: [main]
   workflow_dispatch:
