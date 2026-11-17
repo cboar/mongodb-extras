@@ -1,7 +1,7 @@
 {
   "name": "mongodb-extras",
   "version": "0.4.0",
-  "description": "Typed, reusable MongoDB queries with projections and populated relations.",
+  "description": "TypeScript projection inference and reference population for the native MongoDB Node.js driver, without an ORM.",
   "author": "cboar",
   "license": "MIT",
   "type": "module",
@@ -32,12 +32,19 @@
   },
   "keywords": [
     "mongodb",
+    "mongo",
+    "typescript",
+    "nodejs",
     "populate",
+    "projection",
     "relations",
     "views",
-    "typescript",
-    "find",
-    "findOne"
+    "type-inference",
+    "type-safe",
+    "lightweight",
+    "mongoose",
+    "no-orm",
+    "odm"
   ],
   "scripts": {
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",

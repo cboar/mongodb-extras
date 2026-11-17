@@ -1,8 +1,10 @@
 # mongodb-extras
 
-Typed, reusable MongoDB queries with declarative projections and populated relations.
+TypeScript projection inference and reference population for the native MongoDB Node.js driver.
 
-The MongoDB Node.js driver is deliberately low-level: it does not provide reusable result views or populate document references. `mongodb-extras` bridges those gaps without requiring an ODM or replacing the native driver.
+Define reusable queries with typed projections and populated relations, without Mongoose or an ORM. Use your existing MongoDB collections, filters, and sessions.
+
+[npm package](https://www.npmjs.com/package/mongodb-extras) · [GitHub](https://github.com/cboar/mongodb-extras)
 
 ## Install
 
@@ -10,7 +12,7 @@ The MongoDB Node.js driver is deliberately low-level: it does not provide reusab
 npm install mongodb-extras mongodb
 ```
 
-## Define a view
+## Define a MongoDB view
 
 Start with typed MongoDB collections, then describe the fields and relations each query should return.
 
@@ -57,7 +59,21 @@ const articlePreview = defineView({
 
 Populated paths are included automatically when you use an inclusion projection, so `authorId` and `reviewerIds` do not need to be repeated in `select`.
 
-## Find documents
+## TypeScript projection inference
+
+TypeScript infers selected fields and populated relations from the view:
+
+```ts
+const preview = await articlePreview.findOne({ status: 'published' })
+
+preview?.title // string | undefined
+preview?.authorId?.name // string | undefined
+// body and authorId.email are omitted by the projections.
+```
+
+## Query MongoDB collections
+
+### Find documents
 
 `find` accepts a native MongoDB filter and familiar find options. It returns a materialized array with the view's projection and relations applied.
 
@@ -98,15 +114,7 @@ Use native options such as `sort`, `skip`, `limit`, `collation`, or `session` as
 
 Find options apply only to the root collection query, except for `session`, which is propagated to every relation query. This keeps the complete populated read in the same transaction.
 
-## Find documents in ID order
-
-Use `findByIds` to return documents in input order:
-
-```ts
-const articles = await articlePreview.findByIds([secondId, firstId, secondId])
-```
-
-## Find one document
+### Find one document
 
 `findOne` applies the same projection and population rules and returns `null` when no document matches.
 
@@ -130,7 +138,19 @@ const latestArticle = await articlePreview.findOne(
 )
 ```
 
-## Populate nested references
+### Find documents in ID order
+
+Use `findByIds` to return documents in input order:
+
+```ts
+const articles = await articlePreview.findByIds([secondId, firstId, secondId])
+```
+
+## Populate MongoDB references
+
+Use `populate` to resolve references through other views.
+
+### Nested documents and arrays
 
 Use dot-notation for references inside embedded documents and arrays.
 
@@ -161,7 +181,7 @@ const conference = await conferenceView.findOne({
 console.log(conference?.sessions[0]?.speakerId?.name)
 ```
 
-## Match a different key
+### Custom foreign keys
 
 Relations match `_id` by default. Set `foreignKey` when a stored reference targets another field.
 
@@ -204,7 +224,7 @@ console.log(availableBooks[0]?.publisherCode?.name)
 console.log(book?.publisherCode?.name)
 ```
 
-## Control unresolved references
+### Missing references
 
 Set `onUnresolved` to configure how missing relation targets are handled:
 
@@ -222,6 +242,8 @@ const articleView = defineView({
 - `'filter'` removes unresolved matches and any existing nullish values from reference arrays.
 - `'throw'` throws a `PopulateUnresolvedError` if a reference cannot be resolved.
 
+### Filter populated references
+
 Use `filter` to limit populated targets:
 
 ```ts
@@ -234,7 +256,7 @@ populate: {
 }
 ```
 
-## Reuse views
+## Reuse query views
 
 A view can be shared across queries and composed into other views.
 
@@ -254,5 +276,7 @@ const featuredArticle = await articleListItem.findOne({
   _id: new ObjectId('66d8f70a4d0f85c66a813df1'),
 })
 ```
+
+## Compatibility
 
 `mongodb-extras` is ESM-only, requires Node.js 20 or newer, and supports MongoDB Node.js driver 6 and 7 (`mongodb ^6.0.0 || ^7.0.0`).
