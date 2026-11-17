@@ -5,6 +5,9 @@ export default defineConfig({
   site: 'https://cboar.github.io',
   base: '/mongodb-extras',
   trailingSlash: 'always',
+  vite: {
+    tsconfig: './tsconfig.json',
+  },
   integrations: [
     starlight({
       title: 'mongodb-extras',
