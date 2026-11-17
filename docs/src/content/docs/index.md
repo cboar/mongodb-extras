@@ -1,6 +1,11 @@
 ---
 title: Typed MongoDB views in TypeScript
 description: Get started with mongodb-extras to infer MongoDB projections and populate references using the native Node.js driver.
+head:
+  - tag: meta
+    attrs:
+      property: og:type
+      content: website
 ---
 
 `mongodb-extras` adds projection inference and reference population to the native
