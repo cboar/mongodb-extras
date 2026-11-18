@@ -112,7 +112,7 @@ const allArticles = await articlePreview.find()
 
 Use native options such as `sort`, `skip`, `limit`, `collation`, or `session` as needed. The view owns its projection, so pass selected fields to `defineView` rather than supplying a `projection` option to `find`.
 
-Find options apply only to the root collection query, except for `session`, which is propagated to every relation query. This keeps the complete populated read in the same transaction.
+Find options apply only to the root collection query, except for `session`, which is also passed to every relation query. For other driver operations, such as an aggregation, use [`read`](https://cboar.github.io/mongodb-extras/projections/#customize-a-read).
 
 ### Find one document
 
@@ -140,10 +140,13 @@ const latestArticle = await articlePreview.findOne(
 
 ### Find documents in ID order
 
-Use `findByIds` to return documents in input order:
+Use `findByIds` to return documents in input order. Duplicates repeat, and missing IDs become `null`:
 
 ```ts
-const articles = await articlePreview.findByIds([secondId, firstId, secondId])
+const orderedArticles = await articlePreview.findByIds([secondId, missingId, firstId, secondId])
+// [secondArticle, null, firstArticle, secondArticle]
+
+const foundArticles = orderedArticles.filter((doc) => doc !== null)
 ```
 
 ## Populate MongoDB references
@@ -242,15 +245,17 @@ const articleView = defineView({
 - `'filter'` removes unresolved matches and any existing nullish values from reference arrays.
 - `'throw'` throws a `PopulateUnresolvedError` if a reference cannot be resolved.
 
+See the [inferred types for each policy](https://cboar.github.io/mongodb-extras/population/#choose-how-unresolved-references-behave).
+
 ### Filter populated references
 
-Use `filter` to limit populated targets:
+Use `filter` to limit populated targets. It can match fields the target view does not select:
 
 ```ts
 populate: {
   reviewerIds: {
     view: userPreview,
-    filter: { name: { $ne: 'Hidden' } },
+    filter: { email: { $ne: 'hidden@example.com' } },
     onUnresolved: 'filter',
   },
 }
@@ -276,6 +281,8 @@ const featuredArticle = await articleListItem.findOne({
   _id: new ObjectId('66d8f70a4d0f85c66a813df1'),
 })
 ```
+
+To define views that differ by a few fields, [share a base configuration](https://cboar.github.io/mongodb-extras/population/#share-a-view-configuration).
 
 ## Compatibility
 

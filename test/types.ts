@@ -15,8 +15,8 @@ import type { TrackedCollection } from './shared.ts'
 // Implementation helpers are intentionally absent from the package entry point.
 // @ts-expect-error Use ViewDocument instead of its internal projection stages.
 import type { ApplyProjection } from '../src/index.ts'
-// @ts-expect-error Collection compatibility is enforced by defineView.
-import type { HasCompatibleFindOne } from '../src/index.ts'
+// @ts-expect-error The findOne compatibility check is internal.
+import type { ValidateFindOne } from '../src/index.ts'
 
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false

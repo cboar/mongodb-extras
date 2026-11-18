@@ -1,10 +1,7 @@
+import type { CollectionSource, PopulateCollection } from '../types/collection.ts'
 import type {
-  CollectionSource,
   DocumentSelection,
-  HasCompatibleFindOne,
-  PopulateCollection,
   PopulateMap,
-  ValidatePopulateMap,
   View,
   ViewFindByIdsOptions,
   ViewFindOneOptions,
@@ -13,6 +10,7 @@ import type {
   ViewReadOptions,
 } from '../types/core.ts'
 import type { ViewDocument } from '../types/schema.ts'
+import type { ValidateFindOne, ValidatePopulateMap } from '../types/view-validation.ts'
 import { getOrCompileViewPlan, viewPlanCache } from './plan.ts'
 import { executePopulation } from '../populate/engine.ts'
 import { resolveProvider, type ReadContext } from '../database/context.ts'
@@ -24,7 +22,7 @@ export function defineView<
   const S extends DocumentSelection | undefined = undefined,
   const P extends PopulateMap | undefined = undefined,
 >(config: {
-  collection: C & (HasCompatibleFindOne<C> extends true ? unknown : never)
+  collection: C & ValidateFindOne<C>
   select?: S
   populate?: P & ValidatePopulateMap<P>
 }): View<ViewDocument<C, S, P>, C> {
@@ -81,6 +79,12 @@ export function defineView<
         options?.session ? { session: options.session } : undefined,
       )
     },
+    findOne(filter: Record<string, unknown> = {}, options?: ViewFindOneOptions): Promise<unknown> {
+      return executeRead(
+        (collection, { projection }) => collection.findOne(filter, { ...options, projection }),
+        options?.session ? { session: options.session } : undefined,
+      )
+    },
     async findByIds(ids: readonly unknown[], options?: ViewFindByIdsOptions): Promise<unknown> {
       if (ids.length === 0) return []
       if (Object.keys(plan.select ?? {}).some((key) => key.startsWith('_id.'))) {
@@ -97,12 +101,6 @@ export function defineView<
         options?.session ? { session: options.session } : undefined,
       )
       return ids.map((id) => documents.get(toIdKeyString(id)) ?? null)
-    },
-    findOne(filter: Record<string, unknown> = {}, options?: ViewFindOneOptions): Promise<unknown> {
-      return executeRead(
-        (collection, { projection }) => collection.findOne(filter, { ...options, projection }),
-        options?.session ? { session: options.session } : undefined,
-      )
     },
   }
 

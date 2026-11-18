@@ -1,12 +1,6 @@
 import type { Collection, WithId } from 'mongodb'
-import type {
-  CollectionSource,
-  DocumentSelection,
-  PopulateMap,
-  PopulateUnresolvedPolicy,
-  ResolvedCollection,
-  View,
-} from './core.ts'
+import type { CollectionSource, ResolvedCollection } from './collection.ts'
+import type { DocumentSelection, PopulateMap, PopulateUnresolvedPolicy, View } from './core.ts'
 
 type ResolvedCol<C> = ResolvedCollection<EnsureCollectionSource<C>>
 

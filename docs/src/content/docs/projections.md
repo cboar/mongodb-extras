@@ -94,6 +94,15 @@ Set the projection in `defineView`, rather than passing `projection` to a query.
 Options that change the result shape, such as `raw`, `explain`, and `returnKey`,
 are excluded from the view API.
 
+Pass `collation` for locale-aware sorting, such as case-insensitive titles:
+
+```ts
+const byTitle = await articlePreview.find(
+  { status: 'published' },
+  { sort: { title: 1, _id: 1 }, collation: { locale: 'en', strength: 2 } },
+)
+```
+
 ## Find documents in ID order
 
 `findByIds(ids, options?)` preserves input order, duplicates, and missing positions:
@@ -107,6 +116,8 @@ const ordered = await articlePreview.findByIds([
   secondId, missingId, firstId, secondId,
 ])
 // If missingId has no match: [secondArticle, null, firstArticle, secondArticle]
+
+const found = ordered.filter((doc) => doc !== null)
 ```
 
 An empty input returns `[]`. This method uses binary ID matching and does not
@@ -137,8 +148,9 @@ transaction, manage it with the driver's transaction API.
 ## Customize a read
 
 `read(loader, options?)` supplies the resolved collection and the view's effective
-projection. Apply that projection in your loader and return documents, a document,
-or a nullish value. Materialize cursors before returning them.
+projection, which is `undefined` when `select` is omitted or empty. Apply any
+supplied projection and return a document, an array of documents, or a nullish
+value. Materialize cursors before returning them.
 
 ```ts
 const customPage = await articlePreview.read((collection, { projection }) =>
@@ -150,6 +162,23 @@ The view populates the returned documents in place. Return documents whose
 ownership you can transfer to the view. For a custom read with a session, pass
 `session` to your loader's driver call and
 `{ populateOptions: { session } }` as the second argument to `read`.
+
+A loader can also run an aggregation:
+
+```ts
+const randomArticles = await articlePreview.read((collection, { projection }) =>
+  collection
+    .aggregate<Article>([
+      { $match: { status: 'published' } },
+      { $sample: { size: 5 } },
+      ...(projection ? [{ $project: projection }] : []),
+    ])
+    .toArray(),
+)
+```
+
+Keep reference fields intact in the pipeline so they can be populated, and
+reshape the results after `read` returns.
 
 ## Resolve collections lazily
 

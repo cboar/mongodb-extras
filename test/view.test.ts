@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { ClientSession } from 'mongodb'
+import { MongoServerError, type ClientSession } from 'mongodb'
 import { defineView } from '../src/index.ts'
 import type { DocumentSelection } from '../src/types/core.ts'
 import { analyzeSelection } from '../src/view/selection.ts'
@@ -800,6 +800,17 @@ test('implicit inclusion replaces selected descendants with populated parent to 
   assert.deepEqual(doc.reviewer, { _id: testIds.user1Id, name: 'Alice' })
 })
 
+test('implicit inclusion preserves descendant exclusions for MongoDB to validate', async () => {
+  const { courses, users } = await seedDatabase()
+  const courseView = defineView({
+    collection: courses,
+    select: { title: 1, 'reviewer.secret': 0 },
+    populate: { reviewer: { collection: users } },
+  })
+
+  await assert.rejects(courseView.findOne({ _id: 1 }), MongoServerError)
+})
+
 test('implicit inclusion does not add populates when select is an explicit empty object', async () => {
   const { courses, users } = await seedDatabase()
   const userView = defineView({ collection: users, select: { name: 1 } })
@@ -811,7 +822,7 @@ test('implicit inclusion does not add populates when select is an explicit empty
   })
 
   const plan = getViewPlan(courseView)
-  assert.deepEqual(plan?.select, {})
+  assert.equal(plan?.select, undefined)
   assert.equal(plan?.isInclusive, false)
 
   const doc: any = await courseView.findOne({ _id: 1 })

@@ -1,4 +1,5 @@
-import type { DocumentSelection, PopulateCollection } from '../types/core.ts'
+import type { PopulateCollection } from '../types/collection.ts'
+import type { DocumentSelection } from '../types/core.ts'
 import { cloneDocument } from '../utils/clone.ts'
 import { getValuesAtPath } from '../utils/path.ts'
 import { getOrCreate, toKeyString } from '../utils/common.ts'
