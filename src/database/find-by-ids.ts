@@ -1,8 +1,5 @@
-import type {
-  DocumentSelection,
-  PopulateCollection,
-  ViewFindByIdsOptions,
-} from '../types/core.ts'
+import type { PopulateCollection } from '../types/collection.ts'
+import type { DocumentSelection, ViewFindByIdsOptions } from '../types/core.ts'
 import { toIdKeyString } from '../utils/common.ts'
 
 export async function findDocumentsByIds(

@@ -1,6 +1,6 @@
 {
   "name": "mongodb-extras",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "TypeScript projection inference and reference population for the native MongoDB Node.js driver, without an ORM.",
   "author": "cboar",
   "license": "MIT",

@@ -1,4 +1,4 @@
-import type { LazyDatabase } from '../types/core.ts'
+import type { LazyDatabase } from '../types/collection.ts'
 
 export function lazyDatabase<T extends object>(getDb: () => T | Promise<T>): LazyDatabase<T> {
   const providers = new Map<PropertyKey, () => Promise<unknown>>()

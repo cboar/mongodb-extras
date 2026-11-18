@@ -60,6 +60,28 @@ Here, selecting `sessions` keeps each session's `title` as well as its populated
 speaker. To populate relations of a referenced document, give its target view its
 own `populate` configuration. Keep view definitions acyclic.
 
+## Share a view configuration
+
+When two views differ by a few fields, define one as a constant and spread it
+into the other. `as const` keeps the selection literal for inference.
+
+```ts
+const articleDetailConfig = {
+  collection: articles,
+  select: { reviewerIds: 0 },
+  populate: { authorId: userPreview },
+} as const
+
+const articleDetail = defineView(articleDetailConfig)
+const articleSummary = defineView({
+  ...articleDetailConfig,
+  select: { ...articleDetailConfig.select, body: 0 },
+})
+```
+
+`articleSummary` omits `body`, and `articleDetail` keeps it. Treat the shared
+object as read-only after passing it to `defineView`.
+
 ## Match a different foreign key
 
 Use `foreignKey` when the stored value points to a field other than `_id`:
@@ -135,6 +157,14 @@ Set `onUnresolved` on each relation:
 
 Existing `null`, `undefined`, and absent scalar fields are left as they are.
 The default and `'throw'` policies also preserve existing nullish array entries.
+
+For a required reference, where `D` is the target view's document type:
+
+| Policy | `ObjectId` | `ObjectId[]` |
+| --- | --- | --- |
+| `'null'` (default) | `D \| null` | `(D \| null)[]` |
+| `'filter'` | `D \| null` | `D[]` |
+| `'throw'` | `D` | `D[]` |
 
 ```ts
 import { PopulateUnresolvedError } from 'mongodb-extras'

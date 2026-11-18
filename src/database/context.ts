@@ -2,8 +2,8 @@ import type {
   CollectionProvider,
   CollectionSource,
   PopulateCollection,
-  ViewPopulateOptions,
-} from '../types/core.ts'
+} from '../types/collection.ts'
+import type { ViewPopulateOptions } from '../types/core.ts'
 import { getOrCreate } from '../utils/common.ts'
 
 export interface ReadContext {

@@ -3,10 +3,9 @@ export { defineView } from './view/define.ts'
 export { lazyDatabase } from './database/lazy.ts'
 export { prefixKeys } from './utils/path.ts'
 
+export type { CollectionSource, LazyDatabase } from './types/collection.ts'
 export type {
-  CollectionSource,
   DocumentSelection,
-  LazyDatabase,
   PopulateMap,
   PopulateUnresolvedPolicy,
   View,

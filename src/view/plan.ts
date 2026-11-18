@@ -1,5 +1,5 @@
+import type { CollectionSource } from '../types/collection.ts'
 import type {
-  CollectionSource,
   DocumentSelection,
   PopulateMap,
   PopulateUnresolvedPolicy,
@@ -65,7 +65,7 @@ export function getOrCompileViewPlan(source: View | ViewConfig): ViewPlan {
       for (const path of Object.keys(populate)) {
         if (!hasMatchingPrefix(effective, path, 1) && !hasMatchingPrefix(effective, path, 0)) {
           for (const k of Object.keys(effective)) {
-            if (k.startsWith(`${path}.`)) {
+            if (effective[k] === 1 && k.startsWith(`${path}.`)) {
               delete effective[k]
             }
           }
@@ -82,7 +82,8 @@ export function getOrCompileViewPlan(source: View | ViewConfig): ViewPlan {
 
     const plan: ViewPlan = {
       collection: source.collection,
-      select: compiledSelect,
+      // An empty selection returns whole documents, like an omitted one
+      select: compiledAnalysis.selectionKey ? compiledSelect : undefined,
       selectionKey: compiledAnalysis.selectionKey,
       isInclusive: compiledAnalysis.isInclusive,
       relations,
