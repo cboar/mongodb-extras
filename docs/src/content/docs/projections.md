@@ -32,7 +32,8 @@ Keep inclusions and exclusions separate, except for `_id`. Dot notation selects
 nested fields, such as `select: { 'profile.displayName': 1 }`. Projection acceptance
 and validation follow MongoDB's rules.
 
-Keep shared selections literal so TypeScript can infer their exact keys and values:
+The view captures its projection when you define it. Keep shared selections
+literal so TypeScript can infer their exact keys and values:
 
 ```ts
 const listFields = { title: 1, publishedAt: 1 } as const
@@ -124,6 +125,25 @@ An empty input returns `[]`. This method uses binary ID matching and does not
 accept `sort`, `skip`, `limit`, or `collation`. Excluding `_id` from the result is
 supported; projecting only part of a composite `_id` is not.
 
+## Matching numeric keys
+
+MongoDB compares numbers by numeric value, even across numeric types or
+`Decimal128` scales. `findByIds` and population also match returned documents
+to lookup keys in memory by exact BSON representation, not numeric value.
+
+For a document whose key is stored as `Decimal128.fromString('42.00')`:
+
+| Lookup key | MongoDB query | `findByIds` / population |
+| --- | --- | --- |
+| `42` | Matches | Unmatched |
+| `Decimal128.fromString('42')` | Matches | Unmatched |
+| `Decimal128.fromString('42.00')` | Matches | Matches |
+
+An unmatched key becomes `null` in `findByIds` and follows `onUnresolved`
+during population. To avoid mismatches, keep numeric key formats consistent:
+reuse the stored key value directly (for example, `doc._id`), or construct
+lookup keys with the same BSON type and `Decimal128` scale.
+
 ## Use a session
 
 For `find`, `findOne`, and `findByIds`, a supplied `session` is passed to the root
@@ -143,7 +163,8 @@ try {
 ```
 
 Use the same client for collections participating in a session. If you need a
-transaction, manage it with the driver's transaction API.
+transaction, manage it with the driver's transaction API. The view runs its
+population queries sequentially while the supplied session has an active transaction.
 
 ## Customize a read
 

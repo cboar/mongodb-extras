@@ -163,3 +163,23 @@ test('inline and nested populate filters support custom foreign keys', async () 
   assert.equal(users.queryCount, 1)
   assert.equal(partners.queryCount, 1)
 })
+
+test('findByIds retains native null and composite map ID matching', async () => {
+  const { db } = await seedDatabase()
+  const collection = db.collection<{ _id: Map<string, number> | null; name: string }>('map_ids')
+  // A raw insert preserves the explicit null ID without driver ID generation.
+  await db.command({
+    insert: 'map_ids',
+    documents: [
+      { _id: null, name: 'null' },
+      { _id: { value: 1 }, name: 'first' },
+      { _id: { value: 2 }, name: 'second' },
+    ],
+  })
+  const result = await defineView({ collection }).findByIds([
+    new Map([['value', 2]]),
+    null,
+    new Map([['value', 1]]),
+  ])
+  assert.deepEqual(result.map((doc) => doc?.name), ['second', 'null', 'first'])
+})

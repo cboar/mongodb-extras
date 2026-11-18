@@ -26,17 +26,6 @@ jobs:
         mongodb-version: ['8.0', '7.0']
         driver-version: ['locked', '6.0.0']
 
-    services:
-      mongodb:
-        image: mongo:${{ matrix.mongodb-version }}
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -46,6 +35,25 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
+
+      - name: Start MongoDB replica set
+        run: |
+          docker run -d --name mongodb -p 127.0.0.1:27017:27017 mongo:${{ matrix.mongodb-version }} --replSet rs0 --bind_ip_all
+          for i in $(seq 1 30); do
+            if docker exec mongodb mongosh --quiet --eval "quit(db.adminCommand('ping').ok === 1 ? 0 : 1)" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          docker exec mongodb mongosh --quiet --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'localhost:27017'}]})"
+          for i in $(seq 1 30); do
+            if docker exec mongodb mongosh --quiet --eval "quit(db.hello().isWritablePrimary ? 0 : 1)" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MongoDB replica set primary did not become ready" >&2
+          exit 1
 
       - name: Install dependencies
         run: npm ci
@@ -59,5 +67,9 @@ jobs:
 
       - name: Run test suite
         env:
-          MONGODB_URI: mongodb://localhost:27017
+          MONGODB_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true
         run: npm test
+
+      - name: Stop MongoDB
+        if: always()
+        run: docker rm -f mongodb >/dev/null 2>&1 || true
