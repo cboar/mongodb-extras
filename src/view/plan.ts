@@ -50,35 +50,31 @@ export function getOrCompileViewPlan(source: View | ViewConfig): ViewPlan {
 
   compiling.add(source)
   try {
-    const select = 'select' in source ? source.select : undefined
+    const rawSelect = 'select' in source ? source.select : undefined
     const populate = 'populate' in source ? source.populate : undefined
-    const selectionAnalysis = analyzeSelection(select)
     const relations = populate ? compilePopulate(populate) : []
 
-    let compiledSelect = select
-    let compiledAnalysis = selectionAnalysis
+    let compiledSelect: DocumentSelection | undefined
+    if (rawSelect !== undefined) {
+      const effective: Record<string, 0 | 1> = { ...rawSelect }
 
-    if (selectionAnalysis.isInclusive && populate) {
-      let modified = false
-      const effective: Record<string, 0 | 1> = { ...select }
-
-      for (const path of Object.keys(populate)) {
-        if (!hasMatchingPrefix(effective, path, 1) && !hasMatchingPrefix(effective, path, 0)) {
-          for (const k of Object.keys(effective)) {
-            if (effective[k] === 1 && k.startsWith(`${path}.`)) {
-              delete effective[k]
+      if (populate && analyzeSelection(effective).isInclusive) {
+        for (const path of Object.keys(populate)) {
+          if (!hasMatchingPrefix(effective, path, 1) && !hasMatchingPrefix(effective, path, 0)) {
+            for (const k of Object.keys(effective)) {
+              if (effective[k] === 1 && k.startsWith(`${path}.`)) {
+                delete effective[k]
+              }
             }
+            effective[path] = 1
           }
-          effective[path] = 1
-          modified = true
         }
       }
 
-      if (modified) {
-        compiledSelect = Object.freeze(effective)
-        compiledAnalysis = analyzeSelection(compiledSelect)
-      }
+      compiledSelect = Object.freeze(effective)
     }
+
+    const compiledAnalysis = analyzeSelection(compiledSelect)
 
     const plan: ViewPlan = {
       collection: source.collection,

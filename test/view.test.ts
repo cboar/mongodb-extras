@@ -58,7 +58,7 @@ test('rejects cursor return from loader', async () => {
 })
 
 test('propagates find, findOne and findByIds sessions through nested population queries', async () => {
-  const session = {} as ClientSession
+  const session = { inTransaction: () => false } as ClientSession
   const calls: Array<{ collection: string; operation: string; options: any }> = []
 
   function collection(name: string, documents: any[]) {
@@ -122,7 +122,7 @@ test('propagates find, findOne and findByIds sessions through nested population 
 })
 
 test('accepts population session options for custom read loaders', async () => {
-  const session = {} as ClientSession
+  const session = { inTransaction: () => false } as ClientSession
   let relationOptions: any
   const related = {
     find(_filter: any, options?: any) {
@@ -832,4 +832,44 @@ test('implicit inclusion does not add populates when select is an explicit empty
   assert.equal(doc.published, true)
   assert.equal(doc.secret, true)
   assert.deepEqual(doc.reviewer, { _id: testIds.user1Id, name: 'Alice' })
+})
+
+test('mutating a caller projection cannot expose fields through a batched sibling', async () => {
+  const { items, roots } = await seedDatabase()
+  const select: Record<string, 1> = { name: 1 }
+  const author = defineView({ collection: items, select })
+  const editor = defineView({ collection: items, select: { name: 1 } })
+  const view = defineView({ collection: roots, populate: { author, editor } })
+
+  select.secret = 1
+  const doc = await view.findOne({ _id: 1 })
+  const expected = { _id: 1, name: 'A' }
+  assert.deepEqual(doc?.author, expected)
+  assert.deepEqual(doc?.editor, expected)
+  assert.equal(items.queryCount, 1)
+})
+
+test('sibling queries overlap only outside transactions', async () => {
+  for (const active of [false, true]) {
+    let pending = 0
+    let peak = 0
+    const collection = {
+      find: () => ({
+        async toArray() {
+          peak = Math.max(peak, ++pending)
+          await Promise.resolve()
+          pending--
+          return [{ _id: 1 }]
+        },
+      }),
+      findOne: async () => null,
+    }
+    const view = defineView({
+      collection,
+      populate: { author: { collection }, editor: { collection, select: { _id: 1 } } },
+    })
+    const session = { inTransaction: () => active } as ClientSession
+    await view.read(() => ({ author: 1, editor: 1 }), { populateOptions: { session } })
+    assert.equal(peak, active ? 1 : 2)
+  }
 })

@@ -17,7 +17,13 @@ export async function executePopulation(
     const groups = await groupQueryTargets(targets, context)
     const nextLevelWork: LevelWorkItem[] = []
 
-    await Promise.all(groups.map((group) => executeQueryGroup(group, nextLevelWork, context)))
+    if (context.populateOptions?.session?.inTransaction()) {
+      for (const group of groups) {
+        await executeQueryGroup(group, nextLevelWork, context)
+      }
+    } else {
+      await Promise.all(groups.map((group) => executeQueryGroup(group, nextLevelWork, context)))
+    }
 
     currentLevelWork = nextLevelWork
   }

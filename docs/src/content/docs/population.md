@@ -34,6 +34,8 @@ other fields in an embedded document, include its parent in `select`.
 Population uses additional batched queries to target collections. A root filter
 matches stored reference values, not fields on the resulting populated documents.
 
+For numeric references, see [matching numeric keys](/mongodb-extras/projections/#matching-numeric-keys).
+
 ## Traverse embedded documents and arrays
 
 Use dot notation for a reference inside an embedded document or array element:
